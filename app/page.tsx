@@ -3,38 +3,14 @@
 import { useCallback, useState } from "react";
 import { FileUpload } from "./components/file-upload";
 import { PromptSearch } from "./components/prompt-search";
-
-type SearchMatch = {
-  id: number;
-  imageUrl: string | null;
-  distance: number;
-};
-
-type SearchResponse = {
-  ok: boolean;
-  prompt: string;
-  matches: SearchMatch[];
-};
-
-type SearchDisplayMatch = SearchMatch & {
-  signedImageUrl: string | null;
-};
-
-function fileToBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result !== "string") {
-        reject(new Error("Failed to read file"));
-        return;
-      }
-      const [, base64] = reader.result.split(",");
-      resolve(base64 ?? "");
-    };
-    reader.onerror = () => reject(new Error("Failed to read file"));
-    reader.readAsDataURL(file);
-  });
-}
+import { SearchResults } from "./components/search-results";
+import {
+  analyzeImages,
+  hydrateSearchMatches,
+  searchByPrompt,
+  type SearchDisplayMatch,
+} from "@/lib/client/api";
+import { fileToBase64 } from "@/lib/client/images";
 
 export default function Page() {
   const [selectedImages, setSelectedImages] = useState<File[]>([]);
@@ -60,20 +36,10 @@ export default function Page() {
         }))
       );
 
-      const res = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          prompt: "Analyze the uploaded image(s). Return a concise summary.",
-          images,
-        }),
+      const data = await analyzeImages({
+        prompt: "Analyze the uploaded image(s). Return a concise summary.",
+        images,
       });
-
-      if (!res.ok) {
-        throw new Error(`Request failed with status ${res.status}`);
-      }
-
-      const data = await res.json();
       setResult(JSON.stringify(data, null, 2));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");
@@ -89,38 +55,8 @@ export default function Page() {
     setIsSearchLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/prompt-search", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt }),
-      });
-
-      if (!res.ok) {
-        throw new Error(`Request failed with status ${res.status}`);
-      }
-
-      const data = (await res.json()) as SearchResponse;
-
-      const signedMatches = await Promise.all(
-        data.matches.map(async (match) => {
-          if (!match.imageUrl) {
-            return { ...match, signedImageUrl: null };
-          }
-
-          const presignRes = await fetch("/api/s3/presign", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ imageUrl: match.imageUrl }),
-          });
-
-          if (!presignRes.ok) {
-            throw new Error(`View URL presign failed with status ${presignRes.status}`);
-          }
-
-          const presignData = (await presignRes.json()) as { viewUrl: string };
-          return { ...match, signedImageUrl: presignData.viewUrl };
-        })
-      );
+      const data = await searchByPrompt(prompt);
+      const signedMatches = await hydrateSearchMatches(data.matches);
 
       setSearchMatches(signedMatches);
       setResult(JSON.stringify(data, null, 2));
@@ -193,38 +129,7 @@ export default function Page() {
           </pre>
         )}
 
-        {searchMatches.length > 0 && (
-          <section className="mt-6 space-y-3">
-            <h2 className="text-sm font-semibold text-foreground">Search Matches</h2>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              {searchMatches.map((match) => (
-                <article
-                  key={match.id}
-                  className="overflow-hidden rounded-md border border-border bg-card"
-                >
-                  {match.signedImageUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={match.signedImageUrl}
-                      alt={`Match ${match.id}`}
-                      className="h-40 w-full object-cover"
-                    />
-                  ) : (
-                    <div className="flex h-40 items-center justify-center bg-muted text-xs text-muted-foreground">
-                      No image URL
-                    </div>
-                  )}
-                  <div className="space-y-1 p-3 text-xs">
-                    <p className="text-muted-foreground">ID: {match.id}</p>
-                    <p className="text-muted-foreground">
-                      Distance: {Number(match.distance).toFixed(4)}
-                    </p>
-                  </div>
-                </article>
-              ))}
-            </div>
-          </section>
-        )}
+        <SearchResults matches={searchMatches} />
       </div>
     </main>
   );
