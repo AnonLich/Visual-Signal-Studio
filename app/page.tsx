@@ -4,6 +4,22 @@ import { useCallback, useState } from "react";
 import { FileUpload } from "./components/file-upload";
 import { PromptSearch } from "./components/prompt-search";
 
+type SearchMatch = {
+  id: number;
+  imageUrl: string | null;
+  distance: number;
+};
+
+type SearchResponse = {
+  ok: boolean;
+  prompt: string;
+  matches: SearchMatch[];
+};
+
+type SearchDisplayMatch = SearchMatch & {
+  signedImageUrl: string | null;
+};
+
 function fileToBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -27,6 +43,7 @@ export default function Page() {
   const [error, setError] = useState<string | null>(null);
   const [searchPrompt, setSearchPrompt] = useState("");
   const [isSearchLoading, setIsSearchLoading] = useState(false);
+  const [searchMatches, setSearchMatches] = useState<SearchDisplayMatch[]>([]);
 
   const handleImagesChange = useCallback((images: File[]) => {
     setSelectedImages(images);
@@ -56,8 +73,8 @@ export default function Page() {
         throw new Error(`Request failed with status ${res.status}`);
       }
 
-      const data = await res.text();
-      setResult(data);
+      const data = await res.json();
+      setResult(JSON.stringify(data, null, 2));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");
     } finally {
@@ -82,10 +99,34 @@ export default function Page() {
         throw new Error(`Request failed with status ${res.status}`);
       }
 
-      const data = await res.json();
+      const data = (await res.json()) as SearchResponse;
+
+      const signedMatches = await Promise.all(
+        data.matches.map(async (match) => {
+          if (!match.imageUrl) {
+            return { ...match, signedImageUrl: null };
+          }
+
+          const presignRes = await fetch("/api/s3/presign", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ imageUrl: match.imageUrl }),
+          });
+
+          if (!presignRes.ok) {
+            throw new Error(`View URL presign failed with status ${presignRes.status}`);
+          }
+
+          const presignData = (await presignRes.json()) as { viewUrl: string };
+          return { ...match, signedImageUrl: presignData.viewUrl };
+        })
+      );
+
+      setSearchMatches(signedMatches);
       setResult(JSON.stringify(data, null, 2));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");
+      setSearchMatches([]);
     } finally {
       setIsSearchLoading(false);
     }
@@ -150,6 +191,39 @@ export default function Page() {
           <pre className="mt-4 overflow-auto rounded-md bg-muted p-3 text-xs">
             {JSON.stringify(result, null, 2)}
           </pre>
+        )}
+
+        {searchMatches.length > 0 && (
+          <section className="mt-6 space-y-3">
+            <h2 className="text-sm font-semibold text-foreground">Search Matches</h2>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {searchMatches.map((match) => (
+                <article
+                  key={match.id}
+                  className="overflow-hidden rounded-md border border-border bg-card"
+                >
+                  {match.signedImageUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={match.signedImageUrl}
+                      alt={`Match ${match.id}`}
+                      className="h-40 w-full object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-40 items-center justify-center bg-muted text-xs text-muted-foreground">
+                      No image URL
+                    </div>
+                  )}
+                  <div className="space-y-1 p-3 text-xs">
+                    <p className="text-muted-foreground">ID: {match.id}</p>
+                    <p className="text-muted-foreground">
+                      Distance: {Number(match.distance).toFixed(4)}
+                    </p>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </section>
         )}
       </div>
     </main>

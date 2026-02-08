@@ -1,3 +1,5 @@
+import { randomUUID } from "crypto"
+import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3"
 import { openai } from "@ai-sdk/openai"
 import { embed, generateObject } from "ai"
 import { z } from "zod"
@@ -48,17 +50,86 @@ function normalizeImageInput(image: { data: string; mediaType: string }) {
 		: `data:${image.mediaType};base64,${image.data}`
 }
 
+function resolveImageUrl(image: { data: string; imageUrl?: string }) {
+	if (typeof image.imageUrl === "string" && image.imageUrl.trim().length > 0) {
+		return image.imageUrl.trim()
+	}
+
+	return /^https?:\/\//i.test(image.data) ? image.data : null
+}
+
+function decodeImageData(image: { data: string }) {
+	const base64Payload = image.data.startsWith("data:")
+		? image.data.split(",")[1] ?? ""
+		: image.data
+
+	return Buffer.from(base64Payload, "base64")
+}
+
+function getRequiredEnv(name: string): string {
+	const value = process.env[name]
+	if (!value) {
+		throw new Error(`Missing required env var: ${name}`)
+	}
+
+	return value
+}
+
+async function uploadImageToS3(image: {
+	data: string
+	mediaType: string
+	imageUrl?: string
+}) {
+	const existingUrl = resolveImageUrl(image)
+	if (existingUrl) {
+		return existingUrl
+	}
+
+	const region = getRequiredEnv("AWS_REGION")
+	const bucket = getRequiredEnv("S3_BUCKET")
+	const accessKeyId = getRequiredEnv("AWS_ACCESS_KEY_ID")
+	const secretAccessKey = getRequiredEnv("AWS_SECRET_ACCESS_KEY")
+
+	const s3 = new S3Client({
+		region,
+		credentials: {
+			accessKeyId,
+			secretAccessKey,
+		},
+	})
+
+	const extension = image.mediaType.split("/")[1] ?? "bin"
+	const key = `uploads/${randomUUID()}.${extension}`
+	const body = decodeImageData(image)
+
+	await s3.send(
+		new PutObjectCommand({
+			Bucket: bucket,
+			Key: key,
+			Body: body,
+			ContentType: image.mediaType,
+		}),
+	)
+
+	const encodedKey = key
+		.split("/")
+		.map((part) => encodeURIComponent(part))
+		.join("/")
+
+	return `https://${bucket}.s3.${region}.amazonaws.com/${encodedKey}`
+}
+
 export async function POST(req: Request) {
 	const { prompt, images } = (await req.json()) as {
 		prompt?: string
-		images?: Array<{ data: string; mediaType: string }>
+		images?: Array<{ data: string; mediaType: string; imageUrl?: string }>
 	}
 
 	if (!images || images.length === 0) {
 		return new Response("No images provided", { status: 400 })
 	}
 
-	const rowsToInsert: Array<{ embeddedImage: string }> = []
+	const rowsToInsert: Array<{ embeddedImage: number[]; imageUrl: string | null }> = []
 
 	for (const image of images) {
 		const imageValue = normalizeImageInput(image)
@@ -90,12 +161,13 @@ export async function POST(req: Request) {
 		})
 
 		const embedding = await embedImage(result.object)
-		rowsToInsert.push({ embeddedImage: JSON.stringify(embedding) })
+		const imageUrl = await uploadImageToS3(image)
+		rowsToInsert.push({ embeddedImage: embedding, imageUrl })
 	}
 
 	const saved = await db.insert(imagesTable).values(rowsToInsert).returning({
 		id: imagesTable.id,
-		embeddedImage: imagesTable.embeddedImage,
+		imageUrl: imagesTable.imageUrl,
 	})
 
 	return Response.json({ count: saved.length, items: saved }, { status: 201 })
