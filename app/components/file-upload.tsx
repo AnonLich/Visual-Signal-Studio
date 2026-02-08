@@ -1,8 +1,7 @@
 "use client";
 
-import React from "react"
-
-import { useCallback, useState } from "react";
+import React from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -11,6 +10,10 @@ interface UploadedFile {
     file: File;
     id: string;
     preview?: string;
+}
+
+interface FileUploadProps {
+    onImagesChange?: (images: File[]) => void;
 }
 
 function formatFileSize(bytes: number): string {
@@ -91,9 +94,10 @@ function UploadIcon() {
     );
 }
 
-export function FileUpload() {
+export function FileUpload({ onImagesChange }: FileUploadProps) {
     const [files, setFiles] = useState<UploadedFile[]>([]);
     const [isDragging, setIsDragging] = useState(false);
+    const filesRef = useRef<UploadedFile[]>([]);
 
     const processFiles = useCallback((fileList: FileList) => {
         const newFiles: UploadedFile[] = Array.from(fileList).map((file) => {
@@ -151,13 +155,34 @@ export function FileUpload() {
     }, []);
 
     const clearAll = useCallback(() => {
-        for (const file of files) {
-            if (file.preview) {
-                URL.revokeObjectURL(file.preview);
+        setFiles((prev) => {
+            for (const file of prev) {
+                if (file.preview) {
+                    URL.revokeObjectURL(file.preview);
+                }
             }
-        }
-        setFiles([]);
-    }, [files]);
+            return [];
+        });
+    }, []);
+
+    useEffect(() => {
+        filesRef.current = files;
+        onImagesChange?.(
+            files
+                .filter((uploadedFile) => uploadedFile.file.type.startsWith("image/"))
+                .map((uploadedFile) => uploadedFile.file)
+        );
+    }, [files, onImagesChange]);
+
+    useEffect(() => {
+        return () => {
+            for (const file of filesRef.current) {
+                if (file.preview) {
+                    URL.revokeObjectURL(file.preview);
+                }
+            }
+        };
+    }, []);
 
     return (
         <div className="flex flex-col gap-6">

@@ -1,6 +1,96 @@
+"use client";
+
+import { useCallback, useState } from "react";
 import { FileUpload } from "./components/file-upload";
+import { PromptSearch } from "./components/prompt-search";
+
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result !== "string") {
+        reject(new Error("Failed to read file"));
+        return;
+      }
+      const [, base64] = reader.result.split(",");
+      resolve(base64 ?? "");
+    };
+    reader.onerror = () => reject(new Error("Failed to read file"));
+    reader.readAsDataURL(file);
+  });
+}
 
 export default function Page() {
+  const [selectedImages, setSelectedImages] = useState<File[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [result, setResult] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [searchPrompt, setSearchPrompt] = useState("");
+  const [isSearchLoading, setIsSearchLoading] = useState(false);
+
+  const handleImagesChange = useCallback((images: File[]) => {
+    setSelectedImages(images);
+  }, []);
+
+  const handleAnalyze = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const images = await Promise.all(
+        selectedImages.map(async (file) => ({
+          data: await fileToBase64(file),
+          mediaType: file.type || "image/jpeg",
+        }))
+      );
+
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prompt: "Analyze the uploaded image(s). Return a concise summary.",
+          images,
+        }),
+      });
+
+      if (!res.ok) {
+        throw new Error(`Request failed with status ${res.status}`);
+      }
+
+      const data = await res.text();
+      setResult(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unknown error");
+    } finally {
+      setIsLoading(false);
+    }
+  }, [selectedImages]);
+
+  const handlePromptSearch = useCallback(async () => {
+    const prompt = searchPrompt.trim();
+    if (!prompt) return;
+
+    setIsSearchLoading(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/prompt-search", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt }),
+      });
+
+      if (!res.ok) {
+        throw new Error(`Request failed with status ${res.status}`);
+      }
+
+      const data = await res.json();
+      setResult(JSON.stringify(data, null, 2));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unknown error");
+    } finally {
+      setIsSearchLoading(false);
+    }
+  }, [searchPrompt]);
+
   return (
     <main className="min-h-screen bg-background">
       <div className="mx-auto max-w-2xl px-4 py-16 sm:px-6 lg:px-8">
@@ -28,7 +118,39 @@ export default function Page() {
           </p>
         </header>
 
-        <FileUpload />
+        <FileUpload onImagesChange={handleImagesChange} />
+        <PromptSearch
+          value={searchPrompt}
+          onChange={setSearchPrompt}
+          onSubmit={handlePromptSearch}
+          isLoading={isSearchLoading}
+        />
+
+        {selectedImages.length > 0 && (
+          <div className="mt-4 space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Ready to send {selectedImages.length} image{selectedImages.length === 1 ? "" : "s"} to the server component.
+            </p>
+            <button
+              type="button"
+              onClick={handleAnalyze}
+              disabled={isLoading}
+              className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"
+            >
+              {isLoading ? "Analyzing..." : "Analyze"}
+            </button>
+          </div>
+        )}
+
+        {error && (
+          <p className="mt-4 text-sm text-destructive">{error}</p>
+        )}
+
+        {result && (
+          <pre className="mt-4 overflow-auto rounded-md bg-muted p-3 text-xs">
+            {JSON.stringify(result, null, 2)}
+          </pre>
+        )}
       </div>
     </main>
   );
