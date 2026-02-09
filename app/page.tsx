@@ -96,13 +96,6 @@ export default function Page() {
         </header>
 
         <FileUpload onImagesChange={handleImagesChange} />
-        <PromptSearch
-          value={searchPrompt}
-          onChange={setSearchPrompt}
-          onSubmit={handlePromptSearch}
-          isLoading={isSearchLoading}
-        />
-
         {selectedImages.length > 0 && (
           <div className="mt-4 space-y-3">
             <p className="text-sm text-muted-foreground">
@@ -118,6 +111,14 @@ export default function Page() {
             </button>
           </div>
         )}
+        <PromptSearch
+          value={searchPrompt}
+          onChange={setSearchPrompt}
+          onSubmit={handlePromptSearch}
+          isLoading={isSearchLoading}
+        />
+
+
 
         {error && (
           <p className="mt-4 text-sm text-destructive">{error}</p>
