@@ -23,6 +23,7 @@ const ImageAnalysisSchema = z.object({
 		),
 	targetAudience: z.string(),
 	marketSegment: z.enum(["Budget", "Mid-range", "Premium", "Luxury"]),
+	text: z.string().describe("If any text is showing on the image"),
 })
 
 export type ImageAnalysis = z.infer<typeof ImageAnalysisSchema>
@@ -34,6 +35,7 @@ export function analysisToStrategicBrief(analysis: ImageAnalysis): string {
 		`VISUAL LANGUAGE: ${analysis.shortDescription} with a ${analysis.colorPalette.join(", ")} palette.`,
 		`STYLE MARKERS: ${analysis.visualKeywords.join(", ")}`,
 		`MARKET POSITION: ${analysis.marketSegment} targeting ${analysis.targetAudience}`,
+		`TEXT / BRAND TEXT: ${analysis.text}`,
 	].join(" | ") // Vi använder pipe (|) för att separera segment, det fungerar ofta bättre för neural sökning
 }
 

@@ -1,32 +1,22 @@
 import "server-only"
 import { getRequiredEnv } from "@/lib/server/env"
 
-type ExaSearchResult = {
-	title?: string
-	url?: string
-	publishedDate?: string
-	score?: number
-	text?: string
-	highlights?: string[]
+import OpenAI from "openai"
+// has to use openai client
+export const exaAISearchClient = new OpenAI({
+	baseURL: "https://api.exa.ai",
+
+	apiKey: getRequiredEnv("EXA_SEARCH_API_KEY"),
+})
+
+type TikTokVideoLink = {
+	url: string
+	trendContext: string
 }
 
-type ExaSearchResponse = {
-	requestId?: string
-	autopromptString?: string
-	resolvedSearchType?: string
-	results?: ExaSearchResult[]
-}
-
-const VERY_LATEST_WINDOW_DAYS = 7
-
-function isoDaysAgo(days: number): string {
-	const now = Date.now()
-	return new Date(now - days * 24 * 60 * 60 * 1000).toISOString()
-}
-
-export async function researchTrends(
+export async function searchTikTokVideoLinks(
 	query: string,
-): Promise<ExaSearchResponse> {
+): Promise<TikTokVideoLink[]> {
 	const apiKey = getRequiredEnv("EXA_SEARCH_API_KEY")
 
 	const response = await fetch("https://api.exa.ai/search", {
@@ -36,35 +26,32 @@ export async function researchTrends(
 			"x-api-key": apiKey,
 		},
 		body: JSON.stringify({
-			query: query,
+			query: `${query} site:tiktok.com video`,
 			type: "neural",
 			numResults: 10,
-			// --- DETTA ÄR NYCKELN ---
-			includeDomains: [
-				"tiktok.com",
-				"instagram.com",
-				"dexerto.com",
-				"knowyourmeme.com",
-				"passionfru.it",
-				"theverge.com",
-				"highsnobiety.com",
-			],
-			text: { maxCharacters: 1000 },
-			highlights: {
-				numSentences: 3,
-				highlightsPerUrl: 2,
-			},
+			includeDomains: ["tiktok.com"],
+			text: true,
 		}),
 	})
 
 	if (!response.ok) {
-		const details = await response
-			.text()
-			.catch(() => "Unknown Exa API error")
-		throw new Error(
-			`Exa trend research failed (${response.status}): ${details}`,
-		)
+		return []
 	}
 
-	return (await response.json()) as ExaSearchResponse
+	const data = (await response.json()) as {
+		results?: Array<{ url?: string; title?: string }>
+	}
+
+	return (data.results ?? [])
+		.map((item) => item.url)
+		.filter(
+			(url): url is string =>
+				typeof url === "string" &&
+				/tiktok\.com/i.test(url) &&
+				/\/video\/\d+/i.test(url),
+		)
+		.map((url) => ({
+			url,
+			trendContext: `TikTok link found for query: ${query}`,
+		}))
 }
