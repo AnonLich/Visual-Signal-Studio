@@ -4,7 +4,8 @@ import { useCallback, useState } from "react";
 import { FileUpload } from "./components/file-upload";
 import { PromptSearch } from "./components/prompt-search";
 import {
-  analyzeImages,
+  analyzeImagesStream,
+  type TrendStreamEvent,
 } from "@/lib/client/api";
 import { fileToBase64 } from "@/lib/client/images";
 
@@ -12,6 +13,7 @@ export default function Page() {
   const [selectedImages, setSelectedImages] = useState<File[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<string | null>(null);
+  const [events, setEvents] = useState<TrendStreamEvent[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   const handleImagesChange = useCallback((images: File[]) => {
@@ -21,6 +23,8 @@ export default function Page() {
   const handleAnalyze = useCallback(async () => {
     setIsLoading(true);
     setError(null);
+    setResult(null);
+    setEvents([]);
     try {
       const images = await Promise.all(
         selectedImages.map(async (file) => ({
@@ -29,11 +33,18 @@ export default function Page() {
         }))
       );
 
-      const data = await analyzeImages({
+      await analyzeImagesStream({
         prompt: "Analyze the uploaded image(s). Return a concise summary.",
         images,
+      }, (event) => {
+        setEvents((prev) => [...prev, event]);
+        if (event.type === "complete") {
+          setResult(JSON.stringify(event, null, 2));
+        }
+        if (event.type === "error") {
+          setError(event.message);
+        }
       });
-      setResult(JSON.stringify(data, null, 2));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");
     } finally {
@@ -94,6 +105,19 @@ export default function Page() {
           <pre className="mt-4 overflow-auto rounded-md bg-muted p-3 text-xs">
             {JSON.stringify(result, null, 2)}
           </pre>
+        )}
+
+        {events.length > 0 && (
+          <section className="mt-6 rounded-md border bg-card p-4">
+            <h2 className="text-sm font-semibold text-foreground">Live Agent Flow</h2>
+            <div className="mt-3 max-h-96 space-y-2 overflow-auto text-xs">
+              {events.map((event, index) => (
+                <pre key={`${event.type}-${index}`} className="rounded bg-muted p-2 whitespace-pre-wrap break-words">
+                  {JSON.stringify(event, null, 2)}
+                </pre>
+              ))}
+            </div>
+          </section>
         )}
 
       </div>

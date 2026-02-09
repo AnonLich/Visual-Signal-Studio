@@ -19,6 +19,31 @@ type AnalyzeImagePayload = {
 	mediaType: string
 }
 
+export type TrendStreamEvent =
+	| { type: "status"; message: string; imageIndex?: number }
+	| { type: "uploaded"; imageIndex: number; imageUrl: string }
+	| {
+			type: "step"
+			imageIndex: number
+			stepNumber: number
+			text?: string
+			reasoningText?: string
+			toolCalls: Array<{ toolName: string; input: unknown }>
+			toolResults: Array<{ toolName: string; output: unknown }>
+	  }
+	| {
+			type: "image-complete"
+			imageIndex: number
+			imageUrl: string
+			strategy: unknown
+	  }
+	| {
+			type: "complete"
+			count: number
+			items: Array<{ imageUrl: string; strategy: unknown }>
+	  }
+	| { type: "error"; message: string }
+
 async function parseJsonOrThrow<T>(res: Response, context: string): Promise<T> {
 	if (!res.ok) {
 		throw new Error(`${context} failed with status ${res.status}`)
@@ -38,6 +63,52 @@ export async function analyzeImages(payload: {
 	})
 
 	return parseJsonOrThrow<unknown>(res, "Analyze request")
+}
+
+export async function analyzeImagesStream(
+	payload: {
+		prompt: string
+		images: AnalyzeImagePayload[]
+	},
+	onEvent: (event: TrendStreamEvent) => void,
+) {
+	const res = await fetch("/api/chat", {
+		method: "POST",
+		headers: { "Content-Type": "application/json" },
+		body: JSON.stringify(payload),
+	})
+
+	if (!res.ok) {
+		throw new Error(`Analyze stream request failed with status ${res.status}`)
+	}
+
+	if (!res.body) {
+		throw new Error("Analyze stream response body is missing")
+	}
+
+	const reader = res.body.getReader()
+	const decoder = new TextDecoder()
+	let buffer = ""
+
+	while (true) {
+		const { done, value } = await reader.read()
+		if (done) break
+
+		buffer += decoder.decode(value, { stream: true })
+		const lines = buffer.split("\n")
+		buffer = lines.pop() ?? ""
+
+		for (const line of lines) {
+			const trimmed = line.trim()
+			if (!trimmed) continue
+			onEvent(JSON.parse(trimmed) as TrendStreamEvent)
+		}
+	}
+
+	const tail = buffer.trim()
+	if (tail) {
+		onEvent(JSON.parse(tail) as TrendStreamEvent)
+	}
 }
 
 export async function searchByPrompt(prompt: string) {

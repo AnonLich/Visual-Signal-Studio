@@ -1,7 +1,4 @@
 import { z } from "zod"
-import { db } from "@/db"
-import { images as imagesTable } from "@/db/schema"
-import { analyzeImage, embedImageAnalysis } from "@/lib/server/image-analysis"
 import {
 	decodeImageData,
 	extensionFromMediaType,
@@ -10,8 +7,9 @@ import {
 	type InputImage,
 } from "@/lib/server/image-input"
 import { uploadImageBuffer } from "@/lib/server/s3"
+import { orchestrateTrendMatch } from "@/lib/server/trend-orchestrator"
 
-export const maxDuration = 30
+export const maxDuration = 60
 
 const bodySchema = z.object({
 	prompt: z.string().optional(),
@@ -48,32 +46,107 @@ export async function POST(req: Request) {
 	if (!parsed.success) {
 		return Response.json(
 			{
-				error:
-					"Invalid request body. Expected { prompt?: string, images: Array<{ data: string; mediaType: string; imageUrl?: string }> }.",
+				error: "Invalid request body. Expected { prompt?: string, images: Array<{ data: string; mediaType: string; imageUrl?: string }> }.",
 			},
 			{ status: 400 },
 		)
 	}
 
-	const { prompt, images } = parsed.data
-	const rowsToInsert: Array<{ embeddedImage: number[]; imageUrl: string | null }> = []
+	const { images } = parsed.data
+	const encoder = new TextEncoder()
 
-	for (const image of images) {
-		const imageValue = normalizeImageInput(image)
-		const analysis = await analyzeImage({
-			prompt,
-			image: imageValue,
-			mediaType: image.mediaType,
-		})
-		const embedding = await embedImageAnalysis(analysis)
-		const imageUrl = await persistImageUrl(image)
-		rowsToInsert.push({ embeddedImage: embedding, imageUrl })
-	}
+	const stream = new ReadableStream({
+		start(controller) {
+			const send = (event: Record<string, unknown>) => {
+				controller.enqueue(encoder.encode(`${JSON.stringify(event)}\n`))
+			}
 
-	const saved = await db.insert(imagesTable).values(rowsToInsert).returning({
-		id: imagesTable.id,
-		imageUrl: imagesTable.imageUrl,
+			;(async () => {
+				const results: Array<{
+					imageUrl: string
+					strategy: Awaited<ReturnType<typeof orchestrateTrendMatch>>
+				}> = []
+
+				try {
+					send({
+						type: "status",
+						message:
+							"Request accepted. Starting upload + orchestration pipeline.",
+					})
+
+					for (const [index, image] of images.entries()) {
+						const imageIndex = index + 1
+						send({
+							type: "status",
+							imageIndex,
+							message: "Uploading image...",
+						})
+
+						const imageUrl = await persistImageUrl(image)
+						send({
+							type: "uploaded",
+							imageIndex,
+							imageUrl,
+						})
+
+						send({
+							type: "status",
+							imageIndex,
+							message: "Starting trend orchestration...",
+						})
+
+						const strategy = await orchestrateTrendMatch(
+							{
+								image: normalizeImageInput(image),
+								mediaType: image.mediaType,
+								imageUrl,
+							},
+							{
+								onStep: (step) => {
+									send({
+										type: "step",
+										imageIndex,
+										...step,
+									})
+								},
+							},
+						)
+
+						const item = { imageUrl, strategy }
+						results.push(item)
+						send({
+							type: "image-complete",
+							imageIndex,
+							...item,
+						})
+					}
+
+					send({
+						type: "complete",
+						count: results.length,
+						items: results,
+					})
+				} catch (error) {
+					const message =
+						error instanceof Error
+							? error.message
+							: "Unknown pipeline error."
+					send({
+						type: "error",
+						message,
+					})
+				} finally {
+					controller.close()
+				}
+			})()
+		},
 	})
 
-	return Response.json({ count: saved.length, items: saved }, { status: 201 })
+	return new Response(stream, {
+		headers: {
+			"content-type": "application/x-ndjson; charset=utf-8",
+			"cache-control": "no-cache, no-transform",
+			connection: "keep-alive",
+		},
+	})
 }

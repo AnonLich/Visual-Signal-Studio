@@ -3,28 +3,38 @@ import { openai } from "@ai-sdk/openai"
 import { embed, generateObject } from "ai"
 import { z } from "zod"
 
-const imageAnalysisSchema = z.object({
-	title: z.string().nullable(),
+const ImageAnalysisSchema = z.object({
+	title: z.string(),
 	shortDescription: z.string(),
-	lightning: z.string(),
-	colorPalette: z.string(),
-	cameraAngle: z.string(),
-	emotionalVibe: z.string(),
+	aestheticStyle: z
+		.string()
+		.describe("T.ex. Minimalist, Maximalist, Y2K, Industrial, Cinematic"),
+	colorPalette: z.array(z.string()),
+	// "emotionalVibe" är bra, men "brandArchetype" hjälper Agenten att förstå personligheten
+	brandArchetype: z
+		.string()
+		.describe(
+			"T.ex. The Rebel, The Caregiver, The Explorer, The Luxury Minimalist",
+		),
+	visualKeywords: z
+		.array(z.string())
+		.describe(
+			"5-10 taggar som beskriver stilen, t.ex. ['matte', 'grainy', 'symmetrical']",
+		),
 	targetAudience: z.string(),
+	marketSegment: z.enum(["Budget", "Mid-range", "Premium", "Luxury"]),
 })
 
-export type ImageAnalysis = z.infer<typeof imageAnalysisSchema>
+export type ImageAnalysis = z.infer<typeof ImageAnalysisSchema>
 
-function analysisToEmbeddingInput(analysis: ImageAnalysis): string {
+export function analysisToStrategicBrief(analysis: ImageAnalysis): string {
 	return [
-		`title: ${analysis.title ?? ""}`,
-		`shortDescription: ${analysis.shortDescription}`,
-		`lightning: ${analysis.lightning}`,
-		`colorPalette: ${analysis.colorPalette}`,
-		`cameraAngle: ${analysis.cameraAngle}`,
-		`emotionalVibe: ${analysis.emotionalVibe}`,
-		`targetAudience: ${analysis.targetAudience}`,
-	].join("\n")
+		`CORE AESTHETIC: ${analysis.aestheticStyle}`,
+		`BRAND PERSONALITY: ${analysis.brandArchetype}`,
+		`VISUAL LANGUAGE: ${analysis.shortDescription} with a ${analysis.colorPalette.join(", ")} palette.`,
+		`STYLE MARKERS: ${analysis.visualKeywords.join(", ")}`,
+		`MARKET POSITION: ${analysis.marketSegment} targeting ${analysis.targetAudience}`,
+	].join(" | ") // Vi använder pipe (|) för att separera segment, det fungerar ofta bättre för neural sökning
 }
 
 export async function analyzeImage(params: {
@@ -36,9 +46,10 @@ export async function analyzeImage(params: {
 
 	const result = await generateObject({
 		model: openai("gpt-4.1-mini"),
-		schema: imageAnalysisSchema,
+		schema: ImageAnalysisSchema,
 		schemaName: "ImageStyleAnalysis",
-		schemaDescription: "Extract structured creative direction from the provided image.",
+		schemaDescription:
+			"Extract structured creative direction from the provided image.",
 		messages: [
 			{
 				role: "user",
@@ -65,7 +76,7 @@ export async function analyzeImage(params: {
 export async function embedImageAnalysis(analysis: ImageAnalysis) {
 	const embeddingResult = await embed({
 		model: openai.embedding("text-embedding-3-small"),
-		value: analysisToEmbeddingInput(analysis),
+		value: analysisToStrategicBrief(analysis),
 	})
 
 	return embeddingResult.embedding
