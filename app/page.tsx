@@ -3,12 +3,8 @@
 import { useCallback, useState } from "react";
 import { FileUpload } from "./components/file-upload";
 import { PromptSearch } from "./components/prompt-search";
-import { SearchResults } from "./components/search-results";
 import {
   analyzeImages,
-  hydrateSearchMatches,
-  searchByPrompt,
-  type SearchDisplayMatch,
 } from "@/lib/client/api";
 import { fileToBase64 } from "@/lib/client/images";
 
@@ -17,9 +13,6 @@ export default function Page() {
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [searchPrompt, setSearchPrompt] = useState("");
-  const [isSearchLoading, setIsSearchLoading] = useState(false);
-  const [searchMatches, setSearchMatches] = useState<SearchDisplayMatch[]>([]);
 
   const handleImagesChange = useCallback((images: File[]) => {
     setSelectedImages(images);
@@ -47,26 +40,6 @@ export default function Page() {
       setIsLoading(false);
     }
   }, [selectedImages]);
-
-  const handlePromptSearch = useCallback(async () => {
-    const prompt = searchPrompt.trim();
-    if (!prompt) return;
-
-    setIsSearchLoading(true);
-    setError(null);
-    try {
-      const data = await searchByPrompt(prompt);
-      const signedMatches = await hydrateSearchMatches(data.matches);
-
-      setSearchMatches(signedMatches);
-      setResult(JSON.stringify(data, null, 2));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unknown error");
-      setSearchMatches([]);
-    } finally {
-      setIsSearchLoading(false);
-    }
-  }, [searchPrompt]);
 
   return (
     <main className="min-h-screen bg-background">
@@ -111,14 +84,7 @@ export default function Page() {
             </button>
           </div>
         )}
-        <PromptSearch
-          value={searchPrompt}
-          onChange={setSearchPrompt}
-          onSubmit={handlePromptSearch}
-          isLoading={isSearchLoading}
-        />
-
-
+        <PromptSearch />
 
         {error && (
           <p className="mt-4 text-sm text-destructive">{error}</p>
@@ -130,7 +96,6 @@ export default function Page() {
           </pre>
         )}
 
-        <SearchResults matches={searchMatches} />
       </div>
     </main>
   );

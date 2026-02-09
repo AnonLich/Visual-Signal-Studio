@@ -11,7 +11,7 @@ export type SearchResponse = {
 }
 
 export type SearchDisplayMatch = SearchMatch & {
-	signedImageUrl: string | null
+	signedImageUrl: string | null | undefined
 }
 
 type AnalyzeImagePayload = {
@@ -57,7 +57,10 @@ export async function presignViewUrl(imageUrl: string) {
 		body: JSON.stringify({ imageUrl }),
 	})
 
-	const json = await parseJsonOrThrow<{ viewUrl: string }>(res, "View URL presign request")
+	const json = await parseJsonOrThrow<{ viewUrl: string }>(
+		res,
+		"View URL presign request",
+	)
 	return json.viewUrl
 }
 
