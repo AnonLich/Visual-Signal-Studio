@@ -32,6 +32,8 @@ PHASE 3: Develop 3 TikTok scripts. Each must have a 'Visual Logic' (e.g., "Stati
 STRICT RULE: If you find a trend, you MUST identify the specific 'Audio Trigger' (e.g. a specific sped-up song or an ASMR sound).
 STRICT RULE: No corporate jargon like "boost engagement". Use director terms like "stop-the-scroll hook" and "visual tension".
 STRICT RULE: For each idea's audio_spec, output a real track as 'Song Title - Artist (version/remix if relevant)'. Never output generic audio descriptions like "ethereal synth waves".
+STRICT RULE: Use only trend evidence from the last 12 months (<= 365 days old). Ignore older material.
+STRICT RULE: Never claim you cannot access the image. You can access it by calling 'analyzeImage'.
 `
 
 const FORMATTER_SYSTEM_PROMPT = `
@@ -46,6 +48,7 @@ RULES:
 5. SOURCES PER IDEA: Every content idea must include sourceLinks with 1-3 links.
 6. LINK DIVERSITY: Prefer different source links across the 3 ideas. If a link is reused, add at least one additional unique source link in that idea.
 7. AUDIO FORMAT: audio_spec must be a specific currently trending TikTok song in the format "Song Title - Artist (version/remix if relevant)".
+8. RECENCY: Only use sources and trend signals from the last 12 months.
 `
 
 const URL_REGEX = /(https?:\/\/[^\s"'<>)]+|www\.[^\s"'<>)]+)/gi
@@ -233,9 +236,10 @@ export async function orchestrateTrendMatch(
 		.flatMap((s) => s.toolResults)
 		.find((tr) => tr.toolName === "analyzeImage")
 
-	const analysisFromTool = analysisStep?.output?.analysis as
-		| ImageAnalysis
+	const analysisOutput = analysisStep?.output as
+		| { analysis?: ImageAnalysis }
 		| undefined
+	const analysisFromTool = analysisOutput?.analysis
 	const analysis =
 		analysisFromTool ?? (await analyzeImage({ image, mediaType }))
 
@@ -256,6 +260,21 @@ export async function orchestrateTrendMatch(
 		})
 		.map((text) => text.trim())
 		.filter((text) => text.length > 0)
+
+	const freshTrendCount = researchResult.steps
+		.flatMap((step) => step.toolResults)
+		.filter((tr) => tr.toolName === "researchTrends")
+		.reduce((count, tr) => {
+			const output = tr.output as { trends?: unknown[] } | undefined
+			const trends = Array.isArray(output?.trends) ? output.trends : []
+			return count + trends.length
+		}, 0)
+
+	if (freshTrendCount === 0) {
+		throw new Error(
+			"No trend sources from the last 12 months were found. Please try a different image or query.",
+		)
+	}
 
 	// 3. SEMANTIC RE-RANKING
 	const imageVector = await embedImageAnalysis(analysis)
@@ -289,6 +308,9 @@ ${analysisToStrategicBrief(analysis)}
 
 2026 TREND SIGNALS (RAW DATA):
 ${JSON.stringify(topMatches)}
+
+CONSTRAINT:
+- Use only sources and trend signals from the last 12 months.
 
 REQUIRED OUTPUT:
 1. STRATEGY NAME: Must be a 2-word cryptic title (e.g., 'STATIC-MOSS', 'BLUEPRINT-VOID').

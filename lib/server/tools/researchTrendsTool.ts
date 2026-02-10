@@ -5,6 +5,14 @@ import {
 } from "./schemas"
 import type { ResearchTrendsToolInput } from "./types"
 
+const ONE_YEAR_IN_MS = 365 * 24 * 60 * 60 * 1000
+
+function isWithinLastYear(isoDate: string) {
+	const timestamp = new Date(isoDate).getTime()
+	if (!Number.isFinite(timestamp)) return false
+	return Date.now() - timestamp <= ONE_YEAR_IN_MS
+}
+
 export function createResearchTrendsTool() {
 	return {
 		description:
@@ -17,7 +25,7 @@ export function createResearchTrendsTool() {
 					{
 						role: "system",
 						content:
-							"Find 10-15 SPECIFIC viral TikTok aesthetics for 2026. Return JSON with 'trend_name', 'visual_vibe', 'audio_or_slang', and 'source_url'. Field 'audio_or_slang' must be a specific currently trending TikTok song in this format: 'Song Title - Artist (version/remix if relevant)'. Avoid generic 'discover' pages.",
+							"Find 10-15 SPECIFIC viral TikTok aesthetics from the last 12 months only. Discard anything older than 365 days. Return JSON with 'trend_name', 'visual_vibe', 'audio_or_slang', 'source_url', 'observed_at_iso', and 'why_its_viral'. Field 'audio_or_slang' must be a specific currently trending TikTok song in this format: 'Song Title - Artist (version/remix if relevant)'. Avoid generic 'discover' pages.",
 					},
 					{ role: "user", content: searchQuery },
 				],
@@ -28,15 +36,22 @@ export function createResearchTrendsTool() {
 				// eslint-disable-next-line @typescript-eslint/no-explicit-any
 			} as any)
 
-			console.log(
-				JSON.parse(
-					response.choices[0]?.message?.content || '{"trends":[]}',
-				),
-			)
-
-			return JSON.parse(
+			const parsed = JSON.parse(
 				response.choices[0]?.message?.content || '{"trends":[]}',
 			)
+
+			const trends: unknown[] = Array.isArray(parsed?.trends) ? parsed.trends : []
+			const freshTrends = trends.filter(
+				(trend: unknown) => {
+					if (!trend || typeof trend !== "object") return false
+					const observedAt = (trend as { observed_at_iso?: unknown }).observed_at_iso
+					return (
+						typeof observedAt === "string" && isWithinLastYear(observedAt)
+					)
+				},
+			)
+
+			return { trends: freshTrends }
 		},
 	}
 }

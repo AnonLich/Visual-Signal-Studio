@@ -115,6 +115,7 @@ export default function Page() {
   const [currentStrategy, setCurrentStrategy] = useState<TrendStrategy | null>(null);
   const [currentImageUrl, setCurrentImageUrl] = useState<string | null>(null);
   const [feedback, setFeedback] = useState("");
+  const isAgentWorking = isLoading || isRefining;
 
   type ChatMessage = {
     id: string;
@@ -134,10 +135,9 @@ export default function Page() {
         const phase = event.phase ? ` (${event.phase})` : "";
         const tools =
           event.toolCalls?.map((t) => t.toolName).filter(Boolean) ?? [];
-        const body =
-          event.text ||
-          event.reasoningText ||
-          (tools.length ? `Calling ${tools.join(", ")}` : "Thinking...");
+        const body = tools.length
+          ? `Running ${tools.join(", ")}...`
+          : event.text || event.reasoningText || "Thinking...";
         return {
           ...base,
           tone: "step",
@@ -479,7 +479,7 @@ export default function Page() {
             </div>
 
             <div className="space-y-4">
-              {events.length > 0 && (
+              {(events.length > 0 || isAgentWorking) && (
                 <section className="rounded-2xl border border-slate-700/70 bg-slate-900/70 p-4 shadow-[inset_0_1px_0_rgba(148,163,184,0.08)]">
                   <div className="flex items-center justify-between">
                     <h2 className="font-mono text-sm font-semibold text-slate-100">Lab Log</h2>
@@ -513,9 +513,9 @@ export default function Page() {
                         )}
                         {Array.isArray(msg.tools) && msg.tools.length > 0 && (
                           <div className="mt-2 flex flex-wrap gap-2">
-                            {msg.tools.map((tool: string) => (
+                            {msg.tools.map((tool: string, idx: number) => (
                               <span
-                                key={tool}
+                                key={`${tool}-${idx}`}
                                 className="rounded-full border border-slate-600 bg-slate-700/70 px-2 py-1 text-[11px] text-slate-200"
                               >
                                 {tool}
@@ -525,6 +525,19 @@ export default function Page() {
                         )}
                       </div>
                     ))}
+                    {isAgentWorking && (
+                      <div className="rounded-xl border border-sky-500/30 bg-slate-800/50 p-3 text-xs text-slate-100">
+                        <div className="flex items-center gap-2">
+                          <span className="h-4 w-4 animate-spin rounded-full border-2 border-slate-500 border-t-sky-300" />
+                          <span className="text-[11px] font-semibold text-sky-200">
+                            Agent working
+                          </span>
+                        </div>
+                        <p className="mt-2 text-[12px] text-slate-300">
+                          Thinking and running tools...
+                        </p>
+                      </div>
+                    )}
                   </div>
                 </section>
               )}
