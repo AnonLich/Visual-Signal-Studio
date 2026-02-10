@@ -73,8 +73,7 @@ export async function orchestrateTrendMatch(
 	const researchResult = await generateText({
 		model: openai("gpt-4o"),
 		system: RESEARCH_SYSTEM_PROMPT,
-		prompt: `Analyze this image and build a 2026 trend strategy: ${
-			imageUrl ?? "Image provided in context"
+		prompt: `Analyze the image provided in context and build a 2026 trend strategy
 		}`,
 		stopWhen: stepCountIs(6),
 		tools: {
@@ -89,17 +88,12 @@ export async function orchestrateTrendMatch(
 			}),
 	})
 
-	const MAX_CONTEXT_LENGTH = 15000
-
 	const rawTrendData = researchResult.steps
 		.flatMap((step) => step.toolResults)
 		.filter((tr) => tr.toolName === "researchTrends")
 		.map((tr) => tr.output)
 
-	const safeTrendData =
-		JSON.stringify(rawTrendData).length > MAX_CONTEXT_LENGTH
-			? rawTrendData.slice(0, 5)
-			: rawTrendData
+	console.log(JSON.stringify(rawTrendData))
 
 	const finalPrompt = `
 FINAL TASK: Combine the Creative Discussion with the Real TikTok evidence.
@@ -108,7 +102,7 @@ RESEARCH LOG:
 ${researchResult.text}
 
 RAW TREND DATA FROM EXA:
-${JSON.stringify(safeTrendData)}
+${JSON.stringify(rawTrendData)}
 
 INSTRUCTION:
 1. The 'strategicBrief' must be a high-level creative direction (e.g., "The 'Uncanny Bakery' Strategy").

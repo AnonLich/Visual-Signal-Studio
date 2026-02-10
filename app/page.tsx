@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useState, type ReactNode } from "react";
 import { FileUpload } from "./components/file-upload";
 import { PromptSearch } from "./components/prompt-search";
 import {
@@ -11,17 +11,79 @@ import {
 } from "@/lib/client/api";
 import { fileToBase64 } from "@/lib/client/images";
 
-type TikTokCandidate = {
-  url: string;
-  videoId: string | null;
-};
+const URL_TOKEN_REGEX = /(https?:\/\/[^\s"'<>)]+|www\.[^\s"'<>)]+)/gi;
+
+function cleanUrlToken(value: string) {
+  return value.replace(/[.,!?;:]+$/, "");
+}
+
+function normalizeExternalUrl(value: string): string | null {
+  const cleaned = cleanUrlToken(value.trim());
+  if (!cleaned) return null;
+
+  const candidate = /^https?:\/\//i.test(cleaned) ? cleaned : `https://${cleaned}`;
+
+  try {
+    const parsed = new URL(candidate);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      return null;
+    }
+    return parsed.toString();
+  } catch {
+    return null;
+  }
+}
+
+function linkifyText(value: string): ReactNode[] {
+  const nodes: ReactNode[] = [];
+  let lastIndex = 0;
+
+  for (const match of value.matchAll(URL_TOKEN_REGEX)) {
+    const raw = match[0];
+    const start = match.index ?? 0;
+
+    if (start > lastIndex) {
+      nodes.push(value.slice(lastIndex, start));
+    }
+
+    const normalized = normalizeExternalUrl(raw);
+    const label = cleanUrlToken(raw);
+
+    if (normalized) {
+      nodes.push(
+        <a
+          key={`${start}-${label}`}
+          href={normalized}
+          target="_blank"
+          rel="noreferrer"
+          className="text-cyan-200 underline decoration-cyan-300 underline-offset-4"
+        >
+          {label}
+        </a>,
+      );
+    } else {
+      nodes.push(label);
+    }
+
+    lastIndex = start + raw.length;
+  }
+
+  if (lastIndex < value.length) {
+    nodes.push(value.slice(lastIndex));
+  }
+
+  return nodes.length > 0 ? nodes : [value];
+}
 
 function collectUrls(value: unknown, found: Set<string>) {
   if (typeof value === "string") {
-    const matches = value.match(/https?:\/\/[^\s"'<>)]+/gi);
+    const matches = value.match(URL_TOKEN_REGEX);
     if (matches) {
       for (const match of matches) {
-        found.add(match.replace(/[.,!?;:]+$/, ""));
+        const normalized = normalizeExternalUrl(match);
+        if (normalized) {
+          found.add(normalized);
+        }
       }
     }
     return;
@@ -39,22 +101,10 @@ function collectUrls(value: unknown, found: Set<string>) {
   }
 }
 
-function extractTikTokVideoId(url: string): string | null {
-  try {
-    const parsed = new URL(url);
-    const match = parsed.pathname.match(/\/video\/(\d+)/);
-    return match?.[1] ?? null;
-  } catch {
-    return null;
-  }
-}
-
-function isTikTokUrl(url: string): boolean {
-  try {
-    return new URL(url).hostname.toLowerCase().includes("tiktok.com");
-  } catch {
-    return /tiktok\.com/i.test(url);
-  }
+function collectContentIdeaLinks(value: unknown) {
+  const found = new Set<string>();
+  collectUrls(value, found);
+  return Array.from(found);
 }
 
 export default function Page() {
@@ -131,15 +181,6 @@ export default function Page() {
       }
       return { ...base, tone: "info", title: event.type, body: "" };
     });
-  }, [events]);
-
-  const tiktokLinks = useMemo<TikTokCandidate[]>(() => {
-    const found = new Set<string>();
-    for (const event of events) collectUrls(event, found);
-
-    return Array.from(found)
-      .filter((url) => isTikTokUrl(url))
-      .map((url) => ({ url, videoId: extractTikTokVideoId(url) }));
   }, [events]);
 
   const handleImagesChange = useCallback((images: File[]) => {
@@ -307,6 +348,9 @@ export default function Page() {
                     </div>
                     <div className="grid gap-3 md:grid-cols-2">
                       {currentStrategy.contentIdeas.map((idea, idx) => (
+                        (() => {
+                          const links = collectContentIdeaLinks(idea);
+                          return (
                         <div
                           key={idx}
                           className="rounded-xl border border-white/10 bg-slate-900/60 p-3 shadow-sm shadow-black/30 space-y-2"
@@ -330,50 +374,48 @@ export default function Page() {
                             <p className="text-xs text-slate-200"><span className="text-slate-400">Concept:</span> {idea.concept}</p>
                           )}
                           {idea.source_evidence && (
-                            <p className="text-xs text-teal-200">Source: <span className="text-slate-100">{idea.source_evidence}</span></p>
+                            <p className="text-xs text-teal-200">
+                              Source:{" "}
+                              <span className="text-slate-100">{linkifyText(idea.source_evidence)}</span>
+                            </p>
                           )}
                           {idea.cultural_context && (
-                            <p className="text-xs text-slate-300">{idea.cultural_context}</p>
+                            <p className="text-xs text-slate-300">{linkifyText(idea.cultural_context)}</p>
                           )}
-                          {idea.sourceUrl && (
+                          {idea.sourceUrl && normalizeExternalUrl(idea.sourceUrl) && (
                             <a
                               className="text-xs text-cyan-200 underline decoration-cyan-300 underline-offset-4"
-                              href={idea.sourceUrl}
+                              href={normalizeExternalUrl(idea.sourceUrl) ?? undefined}
                               target="_blank"
                               rel="noreferrer"
                             >
                               Source link
                             </a>
                           )}
+                          {links.length > 0 && (
+                            <div className="space-y-1">
+                              <p className="text-[11px] uppercase tracking-[0.16em] text-teal-200">Links</p>
+                              <div className="space-y-1">
+                                {links.map((url) => (
+                                  <a
+                                    key={url}
+                                    href={url}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="block truncate text-xs text-cyan-200 underline decoration-cyan-300 underline-offset-4"
+                                  >
+                                    {url}
+                                  </a>
+                                ))}
+                              </div>
+                            </div>
+                          )}
                         </div>
+                          );
+                        })()
                       ))}
                     </div>
                   </div>
-                  {currentStrategy.tiktokLinks.length > 0 && (
-                    <div className="space-y-2">
-                      <p className="text-xs uppercase tracking-[0.2em] text-teal-200">TikTok Links</p>
-                      <div className="space-y-2">
-                        {currentStrategy.tiktokLinks.map((link) => (
-                          <div
-                            key={link.url}
-                            className="flex items-start justify-between rounded-lg border border-white/10 bg-white/5 p-3 text-xs text-slate-100"
-                          >
-                            <div className="space-y-1">
-                              <a
-                                href={link.url}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="block truncate text-cyan-200 underline decoration-cyan-300 underline-offset-4"
-                              >
-                                {link.url}
-                              </a>
-                              <p className="text-[11px] text-slate-300">{link.trendContext}</p>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
                 </div>
               )}
 
@@ -450,47 +492,6 @@ export default function Page() {
                             ))}
                           </div>
                         )}
-                      </div>
-                    ))}
-                  </div>
-                </section>
-              )}
-
-              {tiktokLinks.length > 0 && (
-                <section className="rounded-2xl border border-white/10 bg-slate-900/70 p-4 shadow-inner">
-                  <div className="flex items-center justify-between">
-                    <h2 className="text-sm font-semibold text-white">TikTok Matches</h2>
-                    <span className="text-[11px] uppercase tracking-[0.2em] text-teal-200">Auto-picked</span>
-                  </div>
-                  <div className="mt-3 grid gap-4 sm:grid-cols-2">
-                    {tiktokLinks.map((item) => (
-                      <div
-                        key={item.url}
-                        className="overflow-hidden rounded-xl border border-white/5 bg-white/5 shadow-sm shadow-black/30"
-                      >
-                        {item.videoId ? (
-                          <iframe
-                            src={`https://www.tiktok.com/embed/v2/${item.videoId}`}
-                            title={`TikTok ${item.videoId}`}
-                            className="h-[420px] w-full"
-                            allow="autoplay; encrypted-media; picture-in-picture"
-                            allowFullScreen
-                          />
-                        ) : (
-                          <div className="flex h-40 items-center justify-center bg-slate-800 text-xs text-slate-300">
-                            Could not derive a video ID from this TikTok URL.
-                          </div>
-                        )}
-                        <div className="border-t border-white/10 bg-slate-950/60 p-3 text-[11px] text-teal-100">
-                          <a
-                            href={item.url}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="truncate underline decoration-teal-300 decoration-2 underline-offset-4"
-                          >
-                            {item.url}
-                          </a>
-                        </div>
                       </div>
                     ))}
                   </div>
