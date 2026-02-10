@@ -173,6 +173,19 @@ function ensureDiverseIdeaLinks(strategy: TrendStrategy): TrendStrategy {
 	return { ...strategy, contentIdeas }
 }
 
+function buildFallbackResearchQueries(analysis: ImageAnalysis): string[] {
+	const queryCandidates = [
+		`${analysis.aestheticStyle} TikTok microtrend`,
+		`${analysis.brandArchetype} creator trend TikTok`,
+		`${analysis.visualKeywords.slice(0, 4).join(" ")} viral TikTok format`,
+		`${analysis.marketSegment} audience TikTok trend report`,
+	]
+
+	return Array.from(new Set(queryCandidates.map((query) => query.trim()))).filter(
+		(query) => query.length > 0,
+	)
+}
+
 export async function refineTrendStrategy(
 	input: RefineTrendInput,
 ): Promise<TrendStrategy> {
@@ -207,6 +220,7 @@ export async function orchestrateTrendMatch(
 	options?: OrchestrateTrendOptions,
 ): Promise<TrendStrategy> {
 	const { image, mediaType, imageUrl } = input
+	const researchTool = createResearchTrendsTool()
 	let stepNumber = 0
 
 	const emitStep = (step: EmittedTrendStep) => {
@@ -221,7 +235,7 @@ export async function orchestrateTrendMatch(
 		stopWhen: stepCountIs(6),
 		tools: {
 			analyzeImage: createAnalyzeImageTool({ image, mediaType }),
-			researchTrends: createResearchTrendsTool(),
+			researchTrends: researchTool,
 		},
 		onStepFinish: (step) =>
 			emitStep({
@@ -243,7 +257,7 @@ export async function orchestrateTrendMatch(
 	const analysis =
 		analysisFromTool ?? (await analyzeImage({ image, mediaType }))
 
-	const rawTrendTexts = researchResult.steps
+	let rawTrendTexts = researchResult.steps
 		.flatMap((step) => step.toolResults)
 		.filter((tr) => tr.toolName === "researchTrends")
 		.map((tr) => {
@@ -261,7 +275,7 @@ export async function orchestrateTrendMatch(
 		.map((text) => text.trim())
 		.filter((text) => text.length > 0)
 
-	const freshTrendCount = researchResult.steps
+	let freshTrendCount = researchResult.steps
 		.flatMap((step) => step.toolResults)
 		.filter((tr) => tr.toolName === "researchTrends")
 		.reduce((count, tr) => {
@@ -271,8 +285,38 @@ export async function orchestrateTrendMatch(
 		}, 0)
 
 	if (freshTrendCount === 0) {
+		emitStep({
+			text: "No fresh trends from the initial query. Running expanded fallback searches.",
+			toolCalls: [],
+			toolResults: [],
+		})
+
+		const fallbackQueries = buildFallbackResearchQueries(analysis)
+		const fallbackResults = await Promise.allSettled(
+			fallbackQueries.map((query) => researchTool.execute({ searchQuery: query })),
+		)
+
+		const successfulFallbacks = fallbackResults.flatMap((result) =>
+			result.status === "fulfilled"
+				? [result.value as { trends?: unknown[] }]
+				: [],
+		)
+
+		const fallbackTexts = successfulFallbacks
+			.map((output) => JSON.stringify(output))
+			.map((text) => text.trim())
+			.filter((text) => text.length > 0)
+
+		rawTrendTexts = [...rawTrendTexts, ...fallbackTexts]
+		freshTrendCount += successfulFallbacks.reduce((count, output) => {
+			const trends = Array.isArray(output?.trends) ? output.trends : []
+			return count + trends.length
+		}, 0)
+	}
+
+	if (freshTrendCount === 0) {
 		throw new Error(
-			"No trend sources from the last 12 months were found. Please try a different image or query.",
+			"No trend sources from the last 12 months were found after expanded search. Try another image or add feedback with a niche trend direction.",
 		)
 	}
 
