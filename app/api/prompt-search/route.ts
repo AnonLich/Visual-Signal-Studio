@@ -1,15 +1,15 @@
 import { openai } from "@ai-sdk/openai"
 import { convertToModelMessages, streamText } from "ai"
-import { z } from "zod"
 import { searchImagesByPrompt } from "@/lib/server/vector-search"
-
-const bodySchema = z.object({
-	messages: z.array(z.any()).min(1),
-})
+import {
+	PromptSearchBodySchema,
+	SearchImagesToolInputSchema,
+} from "./schemas"
+import type { SearchImagesToolInput } from "./types"
 
 export async function POST(req: Request) {
 	const json = await req.json().catch(() => null)
-	const parsed = bodySchema.safeParse(json)
+	const parsed = PromptSearchBodySchema.safeParse(json)
 
 	if (!parsed.success) {
 		return Response.json(
@@ -29,11 +29,8 @@ export async function POST(req: Request) {
 			searchImages: {
 				description:
 					"Semantic vector search for previously analyzed images using a text prompt.",
-				inputSchema: z.object({
-					prompt: z.string().min(1),
-					limit: z.number().int().positive().max(20).default(5),
-				}),
-				execute: async ({ prompt, limit }) => {
+				inputSchema: SearchImagesToolInputSchema,
+				execute: async ({ prompt, limit }: SearchImagesToolInput) => {
 					const matches = await searchImagesByPrompt(prompt, limit)
 					return { matches }
 				},

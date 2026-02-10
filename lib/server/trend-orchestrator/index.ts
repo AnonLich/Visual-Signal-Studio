@@ -1,67 +1,17 @@
 import "server-only"
 import { openai } from "@ai-sdk/openai"
 import { generateObject, generateText, stepCountIs } from "ai"
-import { z } from "zod"
-import { createAnalyzeImageTool, createResearchTrendsTool } from "./tools"
-
-const ContentIdeaSchema = z.object({
-	title: z.string(),
-	tiktok_script: z.object({
-		hook: z.string().describe("The first 1.5 seconds that stop the scroll"),
-		visual_direction: z
-			.string()
-			.describe(
-				"Camera angle, lighting type (e.g. high-contrast), and editing pace",
-			),
-		audio_spec: z
-			.string()
-			.describe("The specific viral sound or ASMR trigger to use"),
-	}),
-	source_evidence: z.string(),
-	cultural_context: z
-		.string()
-		.describe("Why does this specific sub-culture care about this?"),
-})
-
-const TikTokLinkSchema = z.object({
-	url: z.string(),
-	trendContext: z.string(),
-})
-
-export const TrendStrategySchema = z.object({
-	strategicBrief: z.string(),
-	contentIdeas: z.array(ContentIdeaSchema).length(3),
-	tiktokLinks: z.array(TikTokLinkSchema).min(1),
-	reasoning: z.string(),
-})
-
-export type TrendStrategy = z.infer<typeof TrendStrategySchema>
-
-type OrchestrateTrendInput = {
-	image: string
-	mediaType: string
-	imageUrl?: string
-}
-
-type RefineTrendInput = {
-	feedback: string
-	currentStrategy: TrendStrategy
-	imageUrl?: string
-}
-
-export type TrendOrchestrationStep = {
-	stepNumber: number
-	text?: string
-	reasoningText?: string
-	toolCalls: Array<{ toolName: string; input: unknown }>
-	toolResults: Array<{ toolName: string; output: unknown }>
-}
-
-type OrchestrateTrendOptions = {
-	onStep?: (step: TrendOrchestrationStep) => void
-}
-
-type EmittedTrendStep = Omit<TrendOrchestrationStep, "stepNumber">
+import { createAnalyzeImageTool, createResearchTrendsTool } from "../tools"
+import { TrendStrategySchema } from "./schemas"
+import type {
+	EmittedTrendStep,
+	OrchestrateTrendInput,
+	OrchestrateTrendOptions,
+	RefineTrendInput,
+	TrendStrategy,
+} from "./types"
+export { TrendStrategySchema } from "./schemas"
+export type { TrendOrchestrationStep, TrendStrategy } from "./types"
 
 const REFINER_SYSTEM_PROMPT =
 	"Refine the strategy based on user feedback. Keep evidence-backed ideas and at least one TikTok link."
@@ -139,10 +89,17 @@ export async function orchestrateTrendMatch(
 			}),
 	})
 
+	const MAX_CONTEXT_LENGTH = 15000
+
 	const rawTrendData = researchResult.steps
 		.flatMap((step) => step.toolResults)
 		.filter((tr) => tr.toolName === "researchTrends")
 		.map((tr) => tr.output)
+
+	const safeTrendData =
+		JSON.stringify(rawTrendData).length > MAX_CONTEXT_LENGTH
+			? rawTrendData.slice(0, 5)
+			: rawTrendData
 
 	const finalPrompt = `
 FINAL TASK: Combine the Creative Discussion with the Real TikTok evidence.
@@ -151,7 +108,7 @@ RESEARCH LOG:
 ${researchResult.text}
 
 RAW TREND DATA FROM EXA:
-${JSON.stringify(rawTrendData)}
+${JSON.stringify(safeTrendData)}
 
 INSTRUCTION:
 1. The 'strategicBrief' must be a high-level creative direction (e.g., "The 'Uncanny Bakery' Strategy").

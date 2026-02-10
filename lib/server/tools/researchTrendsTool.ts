@@ -1,12 +1,16 @@
-import { z } from "zod"
 import { exaAISearchClient } from "../exa"
+import {
+	ResearchTrendsOutputJsonSchema,
+	ResearchTrendsToolInputSchema,
+} from "./schemas"
+import type { ResearchTrendsToolInput } from "./types"
 
 export function createResearchTrendsTool() {
 	return {
 		description:
 			"Search Exa for high-signal cultural trends and viral formats.",
-		inputSchema: z.object({ searchQuery: z.string() }),
-		execute: async ({ searchQuery }: { searchQuery: string }) => {
+		inputSchema: ResearchTrendsToolInputSchema,
+		execute: async ({ searchQuery }: ResearchTrendsToolInput) => {
 			const response = await exaAISearchClient.chat.completions.create({
 				model: "exa",
 				messages: [
@@ -18,42 +22,7 @@ export function createResearchTrendsTool() {
 					{ role: "user", content: searchQuery },
 				],
 				extra_body: {
-					outputSchema: {
-						type: "object",
-						properties: {
-							trends: {
-								type: "array",
-								items: {
-									type: "object",
-									properties: {
-										trend_name: {
-											type: "string",
-										},
-										visual_vibe: {
-											type: "string",
-											description:
-												"Lighting, framing, and editing style",
-										},
-										audio_or_slang: {
-											type: "string",
-										},
-										source_url: {
-											type: "string",
-										},
-										why_its_viral: {
-											type: "string",
-										},
-									},
-									required: [
-										"trend_name",
-										"source_url",
-										"visual_vibe",
-									],
-								},
-							},
-						},
-						required: ["trends"],
-					},
+					outputSchema: ResearchTrendsOutputJsonSchema,
 				},
 				// eslint-disable-next-line @typescript-eslint/no-explicit-any
 			} as any)

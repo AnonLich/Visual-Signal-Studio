@@ -1,10 +1,6 @@
-import { z } from "zod"
 import { analysisToStrategicBrief, analyzeImage } from "../image-analysis"
-
-type AnalyzeImageToolParams = {
-	image: string
-	mediaType: string
-}
+import { AnalyzeImageToolInputSchema } from "./schemas"
+import type { AnalyzeImageToolParams } from "./types"
 
 export function createAnalyzeImageTool({
 	image,
@@ -12,7 +8,7 @@ export function createAnalyzeImageTool({
 }: AnalyzeImageToolParams) {
 	return {
 		description: "Extract the visual DNA and market segment of the image.",
-		inputSchema: z.object({}),
+		inputSchema: AnalyzeImageToolInputSchema,
 		execute: async () => {
 			const analysis = await analyzeImage({ image, mediaType })
 			return {
