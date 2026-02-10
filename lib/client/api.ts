@@ -19,9 +19,27 @@ type AnalyzeImagePayload = {
 	mediaType: string
 }
 
+export type TrendScript = {
+	hook?: string
+	visual_direction?: string
+	audio_spec?: string
+}
+
+export type TrendContentIdea = {
+	title?: string
+	concept?: string
+	tiktok_script?: TrendScript
+	source_evidence?: string
+	cultural_context?: string
+	sourceUrl?: string
+	trendingSignal?: string
+	visualReference?: string
+	whyNow?: string
+}
+
 export type TrendStrategy = {
 	strategicBrief: string
-	contentIdeas: unknown[]
+	contentIdeas: TrendContentIdea[]
 	tiktokLinks: Array<{ url: string; trendContext: string }>
 	reasoning: string
 }
@@ -138,7 +156,12 @@ export async function refineStrategyStream(
 	})
 
 	if (!res.ok) {
-		throw new Error(`Refine request failed with status ${res.status}`)
+		const text = await res.text().catch(() => "")
+		throw new Error(
+			`Refine request failed with status ${res.status}${
+				text ? `: ${text}` : ""
+			}`,
+		)
 	}
 
 	if (!res.body) {

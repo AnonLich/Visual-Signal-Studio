@@ -1,20 +1,146 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { FileUpload } from "./components/file-upload";
 import { PromptSearch } from "./components/prompt-search";
 import {
   analyzeImagesStream,
+  refineStrategyStream,
+  type TrendStrategy,
   type TrendStreamEvent,
 } from "@/lib/client/api";
 import { fileToBase64 } from "@/lib/client/images";
 
+type TikTokCandidate = {
+  url: string;
+  videoId: string | null;
+};
+
+function collectUrls(value: unknown, found: Set<string>) {
+  if (typeof value === "string") {
+    const matches = value.match(/https?:\/\/[^\s"'<>)]+/gi);
+    if (matches) {
+      for (const match of matches) {
+        found.add(match.replace(/[.,!?;:]+$/, ""));
+      }
+    }
+    return;
+  }
+
+  if (Array.isArray(value)) {
+    for (const item of value) collectUrls(item, found);
+    return;
+  }
+
+  if (value && typeof value === "object") {
+    for (const nested of Object.values(value as Record<string, unknown>)) {
+      collectUrls(nested, found);
+    }
+  }
+}
+
+function extractTikTokVideoId(url: string): string | null {
+  try {
+    const parsed = new URL(url);
+    const match = parsed.pathname.match(/\/video\/(\d+)/);
+    return match?.[1] ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function isTikTokUrl(url: string): boolean {
+  try {
+    return new URL(url).hostname.toLowerCase().includes("tiktok.com");
+  } catch {
+    return /tiktok\.com/i.test(url);
+  }
+}
+
 export default function Page() {
   const [selectedImages, setSelectedImages] = useState<File[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [result, setResult] = useState<string | null>(null);
+  const [isRefining, setIsRefining] = useState(false);
   const [events, setEvents] = useState<TrendStreamEvent[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [currentStrategy, setCurrentStrategy] = useState<TrendStrategy | null>(null);
+  const [currentImageUrl, setCurrentImageUrl] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState("");
+
+  type ChatMessage = {
+    id: string;
+    tone: "info" | "step" | "success" | "error";
+    title: string;
+    body: string;
+    tools?: string[];
+  };
+
+  const chatMessages: ChatMessage[] = useMemo(() => {
+    return events.map((event, idx) => {
+      const base = { id: `${event.type}-${idx}` };
+      if (event.type === "status") {
+        return { ...base, tone: "info", title: "Status", body: event.message };
+      }
+      if (event.type === "step") {
+        const phase = event.phase ? ` (${event.phase})` : "";
+        const tools =
+          event.toolCalls?.map((t) => t.toolName).filter(Boolean) ?? [];
+        const body =
+          event.text ||
+          event.reasoningText ||
+          (tools.length ? `Calling ${tools.join(", ")}` : "Thinking...");
+        return {
+          ...base,
+          tone: "step",
+          title: `Step ${event.stepNumber}${phase}`,
+          body,
+          tools,
+        };
+      }
+      if (event.type === "image-complete") {
+        return {
+          ...base,
+          tone: "success",
+          title: "Image processed",
+          body: "Strategy generated for this image.",
+        };
+      }
+      if (event.type === "refine-complete") {
+        return {
+          ...base,
+          tone: "success",
+          title: "Refinement complete",
+          body: "Updated strategy ready.",
+        };
+      }
+      if (event.type === "complete") {
+        return {
+          ...base,
+          tone: "success",
+          title: "Analysis complete",
+          body: `Items: ${event.count}`,
+        };
+      }
+      if (event.type === "error") {
+        return {
+          ...base,
+          tone: "error",
+          title: "Error",
+          body: event.message,
+        };
+      }
+      return { ...base, tone: "info", title: event.type, body: "" };
+    });
+  }, [events]);
+
+  const tiktokLinks = useMemo<TikTokCandidate[]>(() => {
+    const found = new Set<string>();
+    for (const event of events) collectUrls(event, found);
+
+    return Array.from(found)
+      .filter((url) => isTikTokUrl(url))
+      .map((url) => ({ url, videoId: extractTikTokVideoId(url) }));
+  }, [events]);
 
   const handleImagesChange = useCallback((images: File[]) => {
     setSelectedImages(images);
@@ -23,28 +149,34 @@ export default function Page() {
   const handleAnalyze = useCallback(async () => {
     setIsLoading(true);
     setError(null);
-    setResult(null);
     setEvents([]);
+    setCurrentStrategy(null);
+    setCurrentImageUrl(null);
     try {
       const images = await Promise.all(
         selectedImages.map(async (file) => ({
           data: await fileToBase64(file),
           mediaType: file.type || "image/jpeg",
-        }))
+        })),
       );
 
-      await analyzeImagesStream({
-        prompt: "Analyze the uploaded image(s). Return a concise summary.",
-        images,
-      }, (event) => {
-        setEvents((prev) => [...prev, event]);
-        if (event.type === "complete") {
-          setResult(JSON.stringify(event, null, 2));
-        }
-        if (event.type === "error") {
-          setError(event.message);
-        }
-      });
+      await analyzeImagesStream(
+        { prompt: "Analyze the uploaded image(s).", images },
+        (event) => {
+          setEvents((prev) => [...prev, event]);
+          if (event.type === "image-complete") {
+            setCurrentStrategy(event.strategy as TrendStrategy);
+            setCurrentImageUrl(event.imageUrl);
+          }
+          if (event.type === "complete" && event.items[0]) {
+            setCurrentStrategy(event.items[0].strategy as TrendStrategy);
+            setCurrentImageUrl(event.items[0].imageUrl);
+          }
+          if (event.type === "error") {
+            setError(event.message);
+          }
+        },
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");
     } finally {
@@ -52,74 +184,321 @@ export default function Page() {
     }
   }, [selectedImages]);
 
+  const handleRefine = useCallback(async () => {
+    if (!feedback.trim()) {
+      setError("Please enter feedback before refining.");
+      return;
+    }
+    if (!currentStrategy) {
+      setError("No strategy available yet. Run an analysis first.");
+      return;
+    }
+    setIsRefining(true);
+    setError(null);
+    setEvents((prev) => [
+      ...prev,
+      {
+        type: "status",
+        imageIndex: 1,
+        message: `Refinement started with feedback: ${feedback.trim()}`,
+      },
+    ]);
+    try {
+      await refineStrategyStream(
+        {
+          feedback: feedback.trim(),
+          currentStrategy,
+          imageUrl: currentImageUrl ?? undefined,
+        },
+        (event) => {
+          setEvents((prev) => [...prev, event]);
+          if (event.type === "refine-complete") {
+            setCurrentStrategy(event.strategy as TrendStrategy);
+          }
+          if (event.type === "error") {
+            setError(event.message);
+          }
+        },
+      );
+      setFeedback("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unknown refinement error");
+    } finally {
+      setIsRefining(false);
+    }
+  }, [currentImageUrl, currentStrategy, feedback]);
 
   return (
-    <main className="min-h-screen bg-background">
-      <div className="mx-auto max-w-2xl px-4 py-16 sm:px-6 lg:px-8">
-        <header className="mb-10 text-center">
-          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10">
-            <svg
-              className="h-7 w-7 text-primary"
-              fill="none"
-              viewBox="0 0 24 24"
-              strokeWidth={1.5}
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 0 0-2.455 2.456ZM16.894 20.567 16.5 21.75l-.394-1.183a2.25 2.25 0 0 0-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 0 0 1.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 0 0 1.423 1.423l1.183.394-1.183.394a2.25 2.25 0 0 0-1.423 1.423Z"
-              />
-            </svg>
-          </div>
-          <h1 className="text-3xl font-bold tracking-tight text-foreground text-balance">
-            AI Analyzer
-          </h1>
-          <p className="mt-2 text-base text-muted-foreground leading-relaxed">
-            Upload your files to get started with AI-powered analysis
-          </p>
-        </header>
-
-        <FileUpload onImagesChange={handleImagesChange} />
-        {selectedImages.length > 0 && (
-          <div className="mt-4 space-y-3">
-            <p className="text-sm text-muted-foreground">
-              Ready to send {selectedImages.length} image{selectedImages.length === 1 ? "" : "s"} to the server component.
-            </p>
-            <button
-              type="button"
-              onClick={handleAnalyze}
-              disabled={isLoading}
-              className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"
-            >
-              {isLoading ? "Analyzing..." : "Analyze"}
-            </button>
-          </div>
-        )}
-        <PromptSearch />
-
-        {error && (
-          <p className="mt-4 text-sm text-destructive">{error}</p>
-        )}
-
-        {result && (
-          <pre className="mt-4 overflow-auto rounded-md bg-muted p-3 text-xs">
-            {JSON.stringify(result, null, 2)}
-          </pre>
-        )}
-
-        {events.length > 0 && (
-          <section className="mt-6 rounded-md border bg-card p-4">
-            <h2 className="text-sm font-semibold text-foreground">Live Agent Flow</h2>
-            <div className="mt-3 max-h-96 space-y-2 overflow-auto text-xs">
-              {events.map((event, index) => (
-                <pre key={`${event.type}-${index}`} className="rounded bg-muted p-2 whitespace-pre-wrap break-words">
-                  {JSON.stringify(event, null, 2)}
-                </pre>
-              ))}
+    <main className="min-h-screen bg-gradient-to-b from-slate-900 via-slate-950 to-black text-foreground">
+      <div className="mx-auto max-w-5xl px-4 py-14 sm:px-8 lg:px-10">
+        <div className="rounded-3xl border border-white/10 bg-white/5 p-6 shadow-[0_20px_80px_-30px_rgba(0,0,0,0.8)] backdrop-blur">
+          <header className="mb-8 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="space-y-1">
+              <p className="text-xs uppercase tracking-[0.3em] text-teal-300/80">Trend Orchestrator</p>
+              <h1 className="text-3xl font-semibold text-white">Vision-to-Trend Lab</h1>
+              <p className="text-sm text-slate-300">Upload a vibe, watch the agent think, then steer it with your own notes.</p>
             </div>
-          </section>
-        )}
+            <div className="flex h-12 items-center gap-2 rounded-full bg-gradient-to-r from-teal-500/80 to-cyan-400/80 px-4 text-sm font-medium text-slate-900 shadow-lg shadow-teal-500/30">
+              <span className="h-2 w-2 rounded-full bg-slate-900" />
+              Live multi-step reasoning
+            </div>
+          </header>
+
+          <div className="grid gap-6 lg:grid-cols-[1.6fr,1fr]">
+            <div className="space-y-4">
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-4 shadow-inner">
+                <div className="flex items-center justify-between">
+                  <div className="text-sm font-medium text-white">Upload & Run</div>
+                  {selectedImages.length > 0 && (
+                    <span className="rounded-full bg-white/10 px-3 py-1 text-xs text-teal-200">
+                      {selectedImages.length} ready
+                    </span>
+                  )}
+                </div>
+                <div className="mt-3">
+                  <FileUpload onImagesChange={handleImagesChange} />
+                </div>
+                {selectedImages.length > 0 && (
+                  <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <p className="text-xs text-slate-300">
+                      Ready to send {selectedImages.length} image{selectedImages.length === 1 ? "" : "s"} to the agent.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={handleAnalyze}
+                      disabled={isLoading}
+                      className="inline-flex items-center justify-center rounded-full bg-teal-400 px-4 py-2 text-sm font-semibold text-slate-900 transition hover:shadow-lg hover:shadow-teal-400/30 disabled:opacity-50"
+                    >
+                      {isLoading ? "Analyzing..." : "Analyze"}
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-4 shadow-inner">
+                <PromptSearch />
+              </div>
+
+              {error && (
+                <div className="rounded-2xl border border-red-400/40 bg-red-500/10 p-4 text-sm text-red-100">{error}</div>
+              )}
+
+              {currentStrategy && (
+                <div className="rounded-2xl border border-white/10 bg-gradient-to-b from-slate-900/60 to-slate-950/80 p-4 text-sm text-slate-100 shadow-inner space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="text-xs uppercase tracking-[0.2em] text-teal-200">Latest Strategy</div>
+                      <div className="text-lg font-semibold text-white">Creative Direction</div>
+                    </div>
+                  </div>
+                  <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+                    <p className="text-xs text-teal-200">Strategic Brief</p>
+                    <p className="mt-1 text-sm leading-relaxed text-slate-100">{currentStrategy.strategicBrief}</p>
+                  </div>
+                  {currentStrategy.reasoning && (
+                    <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+                      <p className="text-xs text-teal-200">Reasoning</p>
+                      <p className="mt-1 text-sm leading-relaxed text-slate-200">{currentStrategy.reasoning}</p>
+                    </div>
+                  )}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs uppercase tracking-[0.2em] text-teal-200">Content Ideas</p>
+                    </div>
+                    <div className="grid gap-3 md:grid-cols-2">
+                      {currentStrategy.contentIdeas.map((idea, idx) => (
+                        <div
+                          key={idx}
+                          className="rounded-xl border border-white/10 bg-slate-900/60 p-3 shadow-sm shadow-black/30 space-y-2"
+                        >
+                          <p className="text-sm font-semibold text-white">{idea.title || `Idea ${idx + 1}`}</p>
+                          {idea.tiktok_script && (
+                            <div className="rounded-lg border border-white/5 bg-white/5 p-2 text-xs text-slate-100 space-y-1">
+                              <p className="font-semibold text-teal-200">TikTok Script</p>
+                              {idea.tiktok_script.hook && (
+                                <p><span className="text-slate-300">Hook:</span> {idea.tiktok_script.hook}</p>
+                              )}
+                              {idea.tiktok_script.visual_direction && (
+                                <p><span className="text-slate-300">Visual:</span> {idea.tiktok_script.visual_direction}</p>
+                              )}
+                              {idea.tiktok_script.audio_spec && (
+                                <p><span className="text-slate-300">Audio:</span> {idea.tiktok_script.audio_spec}</p>
+                              )}
+                            </div>
+                          )}
+                          {idea.concept && (
+                            <p className="text-xs text-slate-200"><span className="text-slate-400">Concept:</span> {idea.concept}</p>
+                          )}
+                          {idea.source_evidence && (
+                            <p className="text-xs text-teal-200">Source: <span className="text-slate-100">{idea.source_evidence}</span></p>
+                          )}
+                          {idea.cultural_context && (
+                            <p className="text-xs text-slate-300">{idea.cultural_context}</p>
+                          )}
+                          {idea.sourceUrl && (
+                            <a
+                              className="text-xs text-cyan-200 underline decoration-cyan-300 underline-offset-4"
+                              href={idea.sourceUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                            >
+                              Source link
+                            </a>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  {currentStrategy.tiktokLinks.length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-xs uppercase tracking-[0.2em] text-teal-200">TikTok Links</p>
+                      <div className="space-y-2">
+                        {currentStrategy.tiktokLinks.map((link) => (
+                          <div
+                            key={link.url}
+                            className="flex items-start justify-between rounded-lg border border-white/10 bg-white/5 p-3 text-xs text-slate-100"
+                          >
+                            <div className="space-y-1">
+                              <a
+                                href={link.url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="block truncate text-cyan-200 underline decoration-cyan-300 underline-offset-4"
+                              >
+                                {link.url}
+                              </a>
+                              <p className="text-[11px] text-slate-300">{link.trendContext}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {currentStrategy && (
+                <section className="rounded-2xl border border-white/10 bg-white/5 p-4 shadow-inner">
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-sm font-semibold text-white">Refine With Feedback</h2>
+                    <span className="text-[11px] uppercase tracking-[0.2em] text-teal-200">Interactive</span>
+                  </div>
+                  <p className="mt-1 text-xs text-slate-300">Tell the agent if you like it or not and how to niche it further.</p>
+                  <div className="mt-3 space-y-2">
+                    <textarea
+                      value={feedback}
+                      onChange={(e) => setFeedback(e.target.value)}
+                      placeholder="Example: Push this toward moody brutalist interiors for Gen Z design students. Keep handheld, harsh flash."
+                      className="min-h-24 w-full rounded-xl border border-white/10 bg-slate-900/60 p-3 text-sm text-white outline-none ring-1 ring-transparent transition focus:border-teal-300/60 focus:ring-teal-300/30"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleRefine}
+                      disabled={isRefining || !feedback.trim()}
+                      className="inline-flex items-center justify-center rounded-full bg-gradient-to-r from-teal-400 to-cyan-300 px-4 py-2 text-sm font-semibold text-slate-900 transition hover:shadow-lg hover:shadow-teal-400/30 disabled:opacity-50"
+                    >
+                      {isRefining ? "Refining..." : "Send Feedback"}
+                    </button>
+                  </div>
+                </section>
+              )}
+            </div>
+
+            <div className="space-y-4">
+              {events.length > 0 && (
+                <section className="rounded-2xl border border-white/10 bg-slate-900/70 p-4 shadow-inner">
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-sm font-semibold text-white">Live Agent Flow</h2>
+                    <span className="text-[11px] uppercase tracking-[0.2em] text-teal-200">Streaming</span>
+                  </div>
+                  <div className="mt-3 space-y-3 max-h-[520px] overflow-auto">
+                    {chatMessages.map((msg) => (
+                      <div
+                        key={msg.id}
+                        className="rounded-xl border border-white/5 bg-white/5 p-3 text-xs text-slate-100 shadow-sm shadow-black/30"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <span
+                              className={`h-2 w-2 rounded-full ${
+                                msg.tone === "error"
+                                  ? "bg-red-400"
+                                  : msg.tone === "success"
+                                  ? "bg-teal-300"
+                                  : "bg-cyan-300"
+                              }`}
+                            />
+                            <span className="text-[11px] font-semibold text-teal-100">
+                              {msg.title}
+                            </span>
+                          </div>
+                        </div>
+                        {msg.body && (
+                          <p className="mt-2 text-[12px] leading-relaxed text-slate-100">
+                            {msg.body}
+                          </p>
+                        )}
+                        {Array.isArray(msg.tools) && msg.tools.length > 0 && (
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {msg.tools.map((tool: string) => (
+                              <span
+                                key={tool}
+                                className="rounded-full border border-white/10 bg-white/10 px-2 py-1 text-[11px] text-cyan-100"
+                              >
+                                {tool}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              )}
+
+              {tiktokLinks.length > 0 && (
+                <section className="rounded-2xl border border-white/10 bg-slate-900/70 p-4 shadow-inner">
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-sm font-semibold text-white">TikTok Matches</h2>
+                    <span className="text-[11px] uppercase tracking-[0.2em] text-teal-200">Auto-picked</span>
+                  </div>
+                  <div className="mt-3 grid gap-4 sm:grid-cols-2">
+                    {tiktokLinks.map((item) => (
+                      <div
+                        key={item.url}
+                        className="overflow-hidden rounded-xl border border-white/5 bg-white/5 shadow-sm shadow-black/30"
+                      >
+                        {item.videoId ? (
+                          <iframe
+                            src={`https://www.tiktok.com/embed/v2/${item.videoId}`}
+                            title={`TikTok ${item.videoId}`}
+                            className="h-[420px] w-full"
+                            allow="autoplay; encrypted-media; picture-in-picture"
+                            allowFullScreen
+                          />
+                        ) : (
+                          <div className="flex h-40 items-center justify-center bg-slate-800 text-xs text-slate-300">
+                            Could not derive a video ID from this TikTok URL.
+                          </div>
+                        )}
+                        <div className="border-t border-white/10 bg-slate-950/60 p-3 text-[11px] text-teal-100">
+                          <a
+                            href={item.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="truncate underline decoration-teal-300 decoration-2 underline-offset-4"
+                          >
+                            {item.url}
+                          </a>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              )}
+            </div>
+          </div>
+        </div>
       </div>
     </main>
   );
