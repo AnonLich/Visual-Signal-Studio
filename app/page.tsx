@@ -2,7 +2,6 @@
 
 import { useCallback, useMemo, useState, type ReactNode } from "react";
 import { FileUpload } from "./components/file-upload";
-import { PromptSearch } from "./components/prompt-search";
 import {
   analyzeImagesStream,
   refineStrategyStream,
@@ -316,10 +315,6 @@ export default function Page() {
                 )}
               </div>
 
-              <div className="rounded-2xl border border-white/10 bg-white/5 p-4 shadow-inner">
-                <PromptSearch />
-              </div>
-
               {error && (
                 <div className="rounded-2xl border border-red-400/40 bg-red-500/10 p-4 text-sm text-red-100">{error}</div>
               )}
@@ -360,88 +355,88 @@ export default function Page() {
                             (url) => !sourceLinks.some((link) => link.url === url),
                           );
                           return (
-                        <div
-                          key={idx}
-                          className="rounded-xl border border-white/10 bg-slate-900/60 p-3 shadow-sm shadow-black/30 space-y-2"
-                        >
-                          <p className="text-sm font-semibold text-white">{idea.title || `Idea ${idx + 1}`}</p>
-                          {idea.tiktok_script && (
-                            <div className="rounded-lg border border-white/5 bg-white/5 p-2 text-xs text-slate-100 space-y-1">
-                              <p className="font-semibold text-teal-200">TikTok Script</p>
-                              {idea.tiktok_script.hook && (
-                                <p><span className="text-slate-300">Hook:</span> {idea.tiktok_script.hook}</p>
-                              )}
-                              {idea.tiktok_script.visual_direction && (
-                                <p><span className="text-slate-300">Visual:</span> {idea.tiktok_script.visual_direction}</p>
-                              )}
-                              {idea.tiktok_script.audio_spec && (
-                                <p><span className="text-slate-300">Song:</span> {idea.tiktok_script.audio_spec}</p>
-                              )}
-                            </div>
-                          )}
-                          {idea.concept && (
-                            <p className="text-xs text-slate-200"><span className="text-slate-400">Concept:</span> {idea.concept}</p>
-                          )}
-                          {idea.source_evidence && (
-                            <p className="text-xs text-teal-200">
-                              Source:{" "}
-                              <span className="text-slate-100">{linkifyText(idea.source_evidence)}</span>
-                            </p>
-                          )}
-                          {idea.cultural_context && (
-                            <p className="text-xs text-slate-300">{linkifyText(idea.cultural_context)}</p>
-                          )}
-                          {idea.sourceUrl && normalizeExternalUrl(idea.sourceUrl) && (
-                            <a
-                              className="text-xs text-cyan-200 underline decoration-cyan-300 underline-offset-4"
-                              href={normalizeExternalUrl(idea.sourceUrl) ?? undefined}
-                              target="_blank"
-                              rel="noreferrer"
+                            <div
+                              key={idx}
+                              className="rounded-xl border border-white/10 bg-slate-900/60 p-3 shadow-sm shadow-black/30 space-y-2"
                             >
-                              Source link
-                            </a>
-                          )}
-                          {sourceLinks.length > 0 && (
-                            <div className="space-y-1">
-                              <p className="text-[11px] uppercase tracking-[0.16em] text-teal-200">Source Links</p>
-                              <div className="space-y-1">
-                                {sourceLinks.map((link) => (
-                                  <div key={`${link.url}-${link.trendContext}`} className="text-xs text-slate-200">
-                                    <a
-                                      href={link.url}
-                                      target="_blank"
-                                      rel="noreferrer"
-                                      className="block truncate text-cyan-200 underline decoration-cyan-300 underline-offset-4"
-                                    >
-                                      {link.url}
-                                    </a>
-                                    {link.trendContext && (
-                                      <p className="text-[11px] text-slate-400">{link.trendContext}</p>
-                                    )}
+                              <p className="text-sm font-semibold text-white">{idea.title || `Idea ${idx + 1}`}</p>
+                              {idea.tiktok_script && (
+                                <div className="rounded-lg border border-white/5 bg-white/5 p-2 text-xs text-slate-100 space-y-1">
+                                  <p className="font-semibold text-teal-200">TikTok Script</p>
+                                  {idea.tiktok_script.hook && (
+                                    <p><span className="text-slate-300">Hook:</span> {idea.tiktok_script.hook}</p>
+                                  )}
+                                  {idea.tiktok_script.visual_direction && (
+                                    <p><span className="text-slate-300">Visual:</span> {idea.tiktok_script.visual_direction}</p>
+                                  )}
+                                  {idea.tiktok_script.audio_spec && (
+                                    <p><span className="text-slate-300">Song:</span> {idea.tiktok_script.audio_spec}</p>
+                                  )}
+                                </div>
+                              )}
+                              {idea.concept && (
+                                <p className="text-xs text-slate-200"><span className="text-slate-400">Concept:</span> {idea.concept}</p>
+                              )}
+                              {idea.source_evidence && (
+                                <p className="text-xs text-teal-200">
+                                  Source:{" "}
+                                  <span className="text-slate-100">{linkifyText(idea.source_evidence)}</span>
+                                </p>
+                              )}
+                              {idea.cultural_context && (
+                                <p className="text-xs text-slate-300">{linkifyText(idea.cultural_context)}</p>
+                              )}
+                              {idea.sourceUrl && normalizeExternalUrl(idea.sourceUrl) && (
+                                <a
+                                  className="text-xs text-cyan-200 underline decoration-cyan-300 underline-offset-4"
+                                  href={normalizeExternalUrl(idea.sourceUrl) ?? undefined}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                >
+                                  Source link
+                                </a>
+                              )}
+                              {sourceLinks.length > 0 && (
+                                <div className="space-y-1">
+                                  <p className="text-[11px] uppercase tracking-[0.16em] text-teal-200">Source Links</p>
+                                  <div className="space-y-1">
+                                    {sourceLinks.map((link) => (
+                                      <div key={`${link.url}-${link.trendContext}`} className="text-xs text-slate-200">
+                                        <a
+                                          href={link.url}
+                                          target="_blank"
+                                          rel="noreferrer"
+                                          className="block truncate text-cyan-200 underline decoration-cyan-300 underline-offset-4"
+                                        >
+                                          {link.url}
+                                        </a>
+                                        {link.trendContext && (
+                                          <p className="text-[11px] text-slate-400">{link.trendContext}</p>
+                                        )}
+                                      </div>
+                                    ))}
                                   </div>
-                                ))}
-                              </div>
+                                </div>
+                              )}
+                              {links.length > 0 && (
+                                <div className="space-y-1">
+                                  <p className="text-[11px] uppercase tracking-[0.16em] text-teal-200">Related Links</p>
+                                  <div className="space-y-1">
+                                    {links.map((url) => (
+                                      <a
+                                        key={url}
+                                        href={url}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="block truncate text-xs text-cyan-200 underline decoration-cyan-300 underline-offset-4"
+                                      >
+                                        {url}
+                                      </a>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
                             </div>
-                          )}
-                          {links.length > 0 && (
-                            <div className="space-y-1">
-                              <p className="text-[11px] uppercase tracking-[0.16em] text-teal-200">Related Links</p>
-                              <div className="space-y-1">
-                                {links.map((url) => (
-                                  <a
-                                    key={url}
-                                    href={url}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="block truncate text-xs text-cyan-200 underline decoration-cyan-300 underline-offset-4"
-                                  >
-                                    {url}
-                                  </a>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-                        </div>
                           );
                         })()
                       ))}
@@ -493,13 +488,12 @@ export default function Page() {
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
                             <span
-                              className={`h-2 w-2 rounded-full ${
-                                msg.tone === "error"
+                              className={`h-2 w-2 rounded-full ${msg.tone === "error"
                                   ? "bg-red-400"
                                   : msg.tone === "success"
-                                  ? "bg-teal-300"
-                                  : "bg-cyan-300"
-                              }`}
+                                    ? "bg-teal-300"
+                                    : "bg-cyan-300"
+                                }`}
                             />
                             <span className="text-[11px] font-semibold text-teal-100">
                               {msg.title}
