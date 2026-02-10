@@ -46,11 +46,10 @@ export type TrendStrategy = {
 }
 
 export type TrendStreamEvent =
-	| { type: "status"; message: string; imageIndex?: number }
-	| { type: "uploaded"; imageIndex: number; imageUrl: string }
+	| { type: "status"; message: string }
+	| { type: "uploaded"; imageUrl: string | null }
 	| {
 			type: "step"
-			imageIndex: number
 			phase?: "refine"
 			stepNumber: number
 			text?: string
@@ -60,14 +59,13 @@ export type TrendStreamEvent =
 	  }
 	| {
 			type: "image-complete"
-			imageIndex: number
-			imageUrl: string
+			imageUrl: string | null
 			strategy: unknown
 	  }
 	| {
 			type: "complete"
-			count: number
-			items: Array<{ imageUrl: string; strategy: TrendStrategy }>
+			imageUrl: string | null
+			strategy: TrendStrategy
 	  }
 	| { type: "refine-complete"; strategy: TrendStrategy }
 	| { type: "error"; message: string }
@@ -82,7 +80,7 @@ async function parseJsonOrThrow<T>(res: Response, context: string): Promise<T> {
 
 export async function analyzeImages(payload: {
 	prompt: string
-	images: AnalyzeImagePayload[]
+	image: AnalyzeImagePayload
 }) {
 	const res = await fetch("/api/chat", {
 		method: "POST",
@@ -96,7 +94,7 @@ export async function analyzeImages(payload: {
 export async function analyzeImagesStream(
 	payload: {
 		prompt: string
-		images: AnalyzeImagePayload[]
+		image: AnalyzeImagePayload
 	},
 	onEvent: (event: TrendStreamEvent) => void,
 ) {

@@ -1,38 +1,19 @@
 import {
-	decodeImageData,
-	extensionFromMediaType,
 	normalizeImageInput,
 	resolveImageUrl,
-	type InputImage,
 } from "@/lib/server/image-input"
-import { uploadImageBuffer } from "@/lib/server/s3"
 import {
 	orchestrateTrendMatch,
 	refineTrendStrategy,
 } from "@/lib/server/trend-orchestrator"
 import { AnalyzeRequestSchema, RefineRequestSchema } from "./schemas"
-import type { AnalyzeResultItem, StreamEvent, StreamRunner } from "./types"
+import type { StreamEvent, StreamRunner } from "./types"
 
 export const maxDuration = 60
 const NDJSON_HEADERS = {
 	"content-type": "application/x-ndjson; charset=utf-8",
 	"cache-control": "no-cache, no-transform",
 	connection: "keep-alive",
-}
-
-async function persistImageUrl(image: InputImage) {
-	const existingUrl = resolveImageUrl(image)
-	if (existingUrl) {
-		return existingUrl
-	}
-
-	const { fileUrl } = await uploadImageBuffer({
-		buffer: decodeImageData(image.data),
-		contentType: image.mediaType,
-		extension: extensionFromMediaType(image.mediaType),
-	})
-
-	return fileUrl
 }
 
 function createNdjsonStream(run: StreamRunner) {
@@ -84,73 +65,62 @@ export async function POST(req: Request) {
 	if (!parsed.success) {
 		return Response.json(
 			{
-				error: "Invalid request body. Expected { prompt?: string, images: Array<{ data: string; mediaType: string; imageUrl?: string }> } or { mode: 'refine', feedback, currentStrategy }.",
+				error: "Invalid request body. Expected { prompt?: string, image: { data: string; mediaType: string; imageUrl?: string } } or { mode: 'refine', feedback, currentStrategy }.",
 			},
 			{ status: 400 },
 		)
 	}
 
-	const { images } = parsed.data
+	const { image } = parsed.data
 	const stream = createNdjsonStream(async ({ send }) => {
-		const results: AnalyzeResultItem[] = []
+		send({
+			type: "status",
+			message: "Request accepted. Starting analysis pipeline.",
+		})
+
+		const imageUrl = resolveImageUrl(image)
 
 		send({
 			type: "status",
-			message:
-				"Request accepted. Starting upload + orchestration pipeline.",
+			message: "Preparing image input...",
 		})
 
-		for (const [index, image] of images.entries()) {
-			const imageIndex = index + 1
-			send({
-				type: "status",
-				imageIndex,
-				message: "Uploading image...",
-			})
+		send({
+			type: "uploaded",
+			imageUrl,
+		})
 
-			const imageUrl = await persistImageUrl(image)
-			send({
-				type: "uploaded",
-				imageIndex,
-				imageUrl,
-			})
+		send({
+			type: "status",
+			message: "Starting trend orchestration...",
+		})
 
-			send({
-				type: "status",
-				imageIndex,
-				message: "Starting trend orchestration...",
-			})
-
-			const strategy = await orchestrateTrendMatch(
-				{
-					image: normalizeImageInput(image),
-					mediaType: image.mediaType,
-					imageUrl,
+		const strategy = await orchestrateTrendMatch(
+			{
+				image: normalizeImageInput(image),
+				mediaType: image.mediaType,
+				imageUrl: imageUrl ?? undefined,
+			},
+			{
+				onStep: (step) => {
+					send({
+						type: "step",
+						...step,
+					})
 				},
-				{
-					onStep: (step) => {
-						send({
-							type: "step",
-							imageIndex,
-							...step,
-						})
-					},
-				},
-			)
+			},
+		)
 
-			const item = { imageUrl, strategy }
-			results.push(item)
-			send({
-				type: "image-complete",
-				imageIndex,
-				...item,
-			})
-		}
+		send({
+			type: "image-complete",
+			imageUrl,
+			strategy,
+		})
 
 		send({
 			type: "complete",
-			count: results.length,
-			items: results,
+			imageUrl,
+			strategy,
 		})
 	})
 	return createNdjsonResponse(stream)

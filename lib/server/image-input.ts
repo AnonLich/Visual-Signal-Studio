@@ -22,12 +22,3 @@ export function resolveImageUrl(image: Pick<InputImage, "data" | "imageUrl">) {
 
 	return /^https?:\/\//i.test(image.data) ? image.data : null
 }
-
-export function decodeImageData(data: string) {
-	const base64Payload = data.startsWith("data:") ? data.split(",")[1] ?? "" : data
-	return Buffer.from(base64Payload, "base64")
-}
-
-export function extensionFromMediaType(mediaType: string) {
-	return mediaType.split("/")[1] ?? "bin"
-}

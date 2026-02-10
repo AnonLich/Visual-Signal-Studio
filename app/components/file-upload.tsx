@@ -3,7 +3,6 @@
 import React from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 interface UploadedFile {
@@ -13,7 +12,7 @@ interface UploadedFile {
 }
 
 interface FileUploadProps {
-    onImagesChange?: (images: File[]) => void;
+    onImageChange?: (image: File | null) => void;
 }
 
 function formatFileSize(bytes: number): string {
@@ -94,23 +93,29 @@ function UploadIcon() {
     );
 }
 
-export function FileUpload({ onImagesChange }: FileUploadProps) {
-    const [files, setFiles] = useState<UploadedFile[]>([]);
+export function FileUpload({ onImageChange }: FileUploadProps) {
+    const [file, setFile] = useState<UploadedFile | null>(null);
     const [isDragging, setIsDragging] = useState(false);
-    const filesRef = useRef<UploadedFile[]>([]);
+    const fileRef = useRef<UploadedFile | null>(null);
 
     const processFiles = useCallback((fileList: FileList) => {
-        const newFiles: UploadedFile[] = Array.from(fileList).map((file) => {
-            const uploaded: UploadedFile = {
-                file,
-                id: `${file.name}-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-            };
-            if (file.type.startsWith("image/")) {
-                uploaded.preview = URL.createObjectURL(file);
+        const next = Array.from(fileList).find((candidate) =>
+            candidate.type.startsWith("image/"),
+        );
+        if (!next) {
+            return;
+        }
+
+        setFile((prev) => {
+            if (prev?.preview) {
+                URL.revokeObjectURL(prev.preview);
             }
-            return uploaded;
+            return {
+                file: next,
+                id: `${next.name}-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+                preview: URL.createObjectURL(next),
+            };
         });
-        setFiles((prev) => [...prev, ...newFiles]);
     }, []);
 
     const handleDragOver = useCallback((e: React.DragEvent) => {
@@ -145,41 +150,26 @@ export function FileUpload({ onImagesChange }: FileUploadProps) {
     );
 
     const removeFile = useCallback((id: string) => {
-        setFiles((prev) => {
-            const file = prev.find((f) => f.id === id);
-            if (file?.preview) {
-                URL.revokeObjectURL(file.preview);
+        setFile((prev) => {
+            if (!prev || prev.id !== id) {
+                return prev;
             }
-            return prev.filter((f) => f.id !== id);
-        });
-    }, []);
-
-    const clearAll = useCallback(() => {
-        setFiles((prev) => {
-            for (const file of prev) {
-                if (file.preview) {
-                    URL.revokeObjectURL(file.preview);
-                }
+            if (prev.preview) {
+                URL.revokeObjectURL(prev.preview);
             }
-            return [];
+            return null;
         });
     }, []);
 
     useEffect(() => {
-        filesRef.current = files;
-        onImagesChange?.(
-            files
-                .filter((uploadedFile) => uploadedFile.file.type.startsWith("image/"))
-                .map((uploadedFile) => uploadedFile.file)
-        );
-    }, [files, onImagesChange]);
+        fileRef.current = file;
+        onImageChange?.(file?.file ?? null);
+    }, [file, onImageChange]);
 
     useEffect(() => {
         return () => {
-            for (const file of filesRef.current) {
-                if (file.preview) {
-                    URL.revokeObjectURL(file.preview);
-                }
+            if (fileRef.current?.preview) {
+                URL.revokeObjectURL(fileRef.current.preview);
             }
         };
     }, []);
@@ -211,13 +201,13 @@ export function FileUpload({ onImagesChange }: FileUploadProps) {
                 <CardContent className="flex flex-col items-center justify-center px-6 py-16">
                     <UploadIcon />
                     <p className="mt-4 font-mono text-lg font-medium text-slate-100">
-                        Drop reference files
+                        Drop reference photo
                     </p>
                     <p className="mt-1 text-sm text-slate-400">
                         or click to browse from your device
                     </p>
                     <p className="mt-3 text-xs text-slate-500">
-                        Supports images and common document formats
+                        Supports image formats
                     </p>
                 </CardContent>
             </Card>
@@ -225,32 +215,27 @@ export function FileUpload({ onImagesChange }: FileUploadProps) {
             <input
                 id="file-input"
                 type="file"
-                multiple
+                accept="image/*"
                 className="hidden"
                 onChange={handleFileInput}
                 aria-hidden="true"
             />
 
             {/* File list */}
-            {files.length > 0 && (
+            {file && (
                 <div className="flex flex-col gap-4">
                     <div className="flex items-center justify-between">
                         <h2 className="text-sm font-semibold text-foreground">
-                            Uploaded files ({files.length})
+                            Uploaded file (1)
                         </h2>
-                        <Button variant="ghost" size="sm" onClick={clearAll} className="text-slate-400 hover:bg-rose-950/20 hover:text-rose-300">
-                            Clear all
-                        </Button>
                     </div>
 
                     <div className="flex flex-col gap-3">
-                        {files.map((uploadedFile) => (
-                            <FileItem
-                                key={uploadedFile.id}
-                                uploadedFile={uploadedFile}
-                                onRemove={removeFile}
-                            />
-                        ))}
+                        <FileItem
+                            key={file.id}
+                            uploadedFile={file}
+                            onRemove={removeFile}
+                        />
                     </div>
                 </div>
             )}

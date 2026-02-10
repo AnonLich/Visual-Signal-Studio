@@ -55,7 +55,7 @@ export function toChatMessages(events: TrendStreamEvent[]): ChatMessage[] {
         ...base,
         tone: "success",
         title: "Analysis complete",
-        body: `Items: ${event.count}`,
+        body: "Strategy ready.",
       };
     }
 

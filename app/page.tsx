@@ -14,7 +14,7 @@ import { LabLog } from "@/app/components/trend-lab/lab-log";
 import { toChatMessages } from "@/app/page-utils/chat-messages";
 
 export default function Page() {
-  const [selectedImages, setSelectedImages] = useState<File[]>([]);
+  const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isRefining, setIsRefining] = useState(false);
   const [events, setEvents] = useState<TrendStreamEvent[]>([]);
@@ -26,8 +26,8 @@ export default function Page() {
   const isAgentWorking = isLoading || isRefining;
   const chatMessages = useMemo(() => toChatMessages(events), [events]);
 
-  const handleImagesChange = useCallback((images: File[]) => {
-    setSelectedImages(images);
+  const handleImageChange = useCallback((image: File | null) => {
+    setSelectedImage(image);
   }, []);
 
   const handleAnalyze = useCallback(async () => {
@@ -38,15 +38,18 @@ export default function Page() {
     setCurrentImageUrl(null);
 
     try {
-      const images = await Promise.all(
-        selectedImages.map(async (file) => ({
-          data: await fileToBase64(file),
-          mediaType: file.type || "image/jpeg",
-        })),
-      );
+      if (!selectedImage) {
+        setError("Please upload one image before analyzing.");
+        return;
+      }
+
+      const image = {
+        data: await fileToBase64(selectedImage),
+        mediaType: selectedImage.type || "image/jpeg",
+      };
 
       await analyzeImagesStream(
-        { prompt: "Analyze the uploaded image(s).", images },
+        { prompt: "Analyze the uploaded image.", image },
         (event) => {
           setEvents((prev) => [...prev, event]);
 
@@ -55,9 +58,9 @@ export default function Page() {
             setCurrentImageUrl(event.imageUrl);
           }
 
-          if (event.type === "complete" && event.items[0]) {
-            setCurrentStrategy(event.items[0].strategy as TrendStrategy);
-            setCurrentImageUrl(event.items[0].imageUrl);
+          if (event.type === "complete") {
+            setCurrentStrategy(event.strategy as TrendStrategy);
+            setCurrentImageUrl(event.imageUrl);
           }
 
           if (event.type === "error") {
@@ -70,7 +73,7 @@ export default function Page() {
     } finally {
       setIsLoading(false);
     }
-  }, [selectedImages]);
+  }, [selectedImage]);
 
   const handleRefine = useCallback(async () => {
     if (!feedback.trim()) {
@@ -89,7 +92,6 @@ export default function Page() {
       ...prev,
       {
         type: "status",
-        imageIndex: 1,
         message: `Refinement started with feedback: ${feedback.trim()}`,
       },
     ]);
@@ -139,7 +141,7 @@ export default function Page() {
               <p className="text-xs uppercase tracking-[0.24em] text-slate-400">Trend Lab</p>
               <h1 className="font-mono text-3xl font-semibold text-slate-100">Visual Signal Studio</h1>
               <p className="text-sm text-slate-400">
-                Upload reference images, inspect source-backed ideas, then refine direction with feedback.
+                Upload reference images, inspect source-backed ideas, then refine direction with feedback. Powered by AI.
               </p>
             </div>
             <div className="flex h-11 items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-4 text-sm font-medium text-emerald-200">
@@ -151,9 +153,9 @@ export default function Page() {
           <div className="grid gap-6 lg:grid-cols-[1.6fr,1fr]">
             <div className="space-y-4">
               <AnalysisPanel
-                selectedImagesCount={selectedImages.length}
+                hasSelectedImage={Boolean(selectedImage)}
                 isLoading={isLoading}
-                onImagesChange={handleImagesChange}
+                onImageChange={handleImageChange}
                 onAnalyze={handleAnalyze}
               />
 
