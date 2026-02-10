@@ -16,7 +16,7 @@ export function createRefineTrendStrategyTool(input: RefineTrendInput) {
 		inputSchema: RefineTrendStrategyToolInputSchema,
 		execute: async () => {
 			const result = await generateObject({
-				model: openai("gpt-4o-mini"),
+				model: openai.chat("gpt-4o-mini"),
 				schema: TrendStrategySchema,
 				system: REFINER_SYSTEM_PROMPT,
 				prompt: `

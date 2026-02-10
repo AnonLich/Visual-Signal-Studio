@@ -47,7 +47,7 @@ export async function analyzeImage(params: {
 	const { prompt, image, mediaType } = params
 
 	const result = await generateObject({
-		model: openai("gpt-4.1-mini"),
+		model: openai.chat("gpt-4.1-mini"),
 		schema: ImageAnalysisSchema,
 		schemaName: "ImageStyleAnalysis",
 		schemaDescription:

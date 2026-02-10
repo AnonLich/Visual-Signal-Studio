@@ -21,7 +21,7 @@ export async function POST(req: Request) {
 	const modelMessages = await convertToModelMessages(parsed.data.messages)
 
 	const result = streamText({
-		model: openai("gpt-4.1-mini"),
+		model: openai.chat("gpt-4.1-mini"),
 		system:
 			"You are an image search assistant. When users ask to find matching images, call the searchImages tool. After tool results are available, always respond with a short natural language summary of the top matches (id + distance).",
 		messages: modelMessages,
