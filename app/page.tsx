@@ -55,7 +55,7 @@ function linkifyText(value: string): ReactNode[] {
           href={normalized}
           target="_blank"
           rel="noreferrer"
-          className="text-cyan-200 underline decoration-cyan-300 underline-offset-4"
+          className="text-sky-300 underline decoration-sky-400 underline-offset-4"
         >
           {label}
         </a>,
@@ -269,28 +269,34 @@ export default function Page() {
   }, [currentImageUrl, currentStrategy, feedback]);
 
   return (
-    <main className="min-h-screen bg-gradient-to-b from-slate-900 via-slate-950 to-black text-foreground">
-      <div className="mx-auto max-w-5xl px-4 py-14 sm:px-8 lg:px-10">
-        <div className="rounded-3xl border border-white/10 bg-white/5 p-6 shadow-[0_20px_80px_-30px_rgba(0,0,0,0.8)] backdrop-blur">
+    <main className="relative min-h-screen overflow-hidden bg-[#0f1115] text-slate-100">
+      <div className="pointer-events-none absolute inset-0 opacity-[0.07]" style={{
+        backgroundImage:
+          "linear-gradient(to right, #94a3b8 1px, transparent 1px), linear-gradient(to bottom, #94a3b8 1px, transparent 1px)",
+        backgroundSize: "28px 28px",
+      }} />
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_10%,rgba(148,163,184,0.08),transparent_40%),radial-gradient(circle_at_80%_0%,rgba(56,189,248,0.06),transparent_35%)]" />
+      <div className="relative mx-auto max-w-6xl px-4 py-10 sm:px-8 lg:px-10">
+        <div className="rounded-3xl border border-slate-700/60 bg-slate-900/60 p-6 shadow-[0_24px_80px_-34px_rgba(2,6,23,0.9)] backdrop-blur-md sm:p-8">
           <header className="mb-8 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="space-y-1">
-              <p className="text-xs uppercase tracking-[0.3em] text-teal-300/80">Trend Orchestrator</p>
-              <h1 className="text-3xl font-semibold text-white">Vision-to-Trend Lab</h1>
-              <p className="text-sm text-slate-300">Upload a vibe, watch the agent think, then steer it with your own notes.</p>
+              <p className="text-xs uppercase tracking-[0.24em] text-slate-400">Trend Lab</p>
+              <h1 className="font-mono text-3xl font-semibold text-slate-100">Visual Signal Studio</h1>
+              <p className="text-sm text-slate-400">Upload reference images, inspect source-backed ideas, then refine direction with feedback.</p>
             </div>
-            <div className="flex h-12 items-center gap-2 rounded-full bg-gradient-to-r from-teal-500/80 to-cyan-400/80 px-4 text-sm font-medium text-slate-900 shadow-lg shadow-teal-500/30">
-              <span className="h-2 w-2 rounded-full bg-slate-900" />
-              Live multi-step reasoning
+            <div className="flex h-11 items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-4 text-sm font-medium text-emerald-200">
+              <span className="h-2 w-2 rounded-full bg-emerald-300" />
+              Session active
             </div>
           </header>
 
           <div className="grid gap-6 lg:grid-cols-[1.6fr,1fr]">
             <div className="space-y-4">
-              <div className="rounded-2xl border border-white/10 bg-white/5 p-4 shadow-inner">
+              <div className="rounded-2xl border border-slate-700/70 bg-slate-900/70 p-4 shadow-[inset_0_1px_0_rgba(148,163,184,0.1)]">
                 <div className="flex items-center justify-between">
-                  <div className="text-sm font-medium text-white">Upload & Run</div>
+                  <div className="font-mono text-sm font-medium text-slate-100">Run Analysis</div>
                   {selectedImages.length > 0 && (
-                    <span className="rounded-full bg-white/10 px-3 py-1 text-xs text-teal-200">
+                    <span className="rounded-full border border-slate-600 bg-slate-800 px-3 py-1 text-xs text-slate-300">
                       {selectedImages.length} ready
                     </span>
                   )}
@@ -300,14 +306,14 @@ export default function Page() {
                 </div>
                 {selectedImages.length > 0 && (
                   <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                    <p className="text-xs text-slate-300">
-                      Ready to send {selectedImages.length} image{selectedImages.length === 1 ? "" : "s"} to the agent.
+                    <p className="text-xs text-slate-400">
+                      Ready to process {selectedImages.length} image{selectedImages.length === 1 ? "" : "s"}.
                     </p>
                     <button
                       type="button"
                       onClick={handleAnalyze}
                       disabled={isLoading}
-                      className="inline-flex items-center justify-center rounded-full bg-teal-400 px-4 py-2 text-sm font-semibold text-slate-900 transition hover:shadow-lg hover:shadow-teal-400/30 disabled:opacity-50"
+                      className="inline-flex items-center justify-center rounded-full border border-slate-500 bg-slate-200 px-4 py-2 text-sm font-semibold text-slate-900 transition hover:bg-white disabled:opacity-50"
                     >
                       {isLoading ? "Analyzing..." : "Analyze"}
                     </button>
@@ -316,30 +322,30 @@ export default function Page() {
               </div>
 
               {error && (
-                <div className="rounded-2xl border border-red-400/40 bg-red-500/10 p-4 text-sm text-red-100">{error}</div>
+                <div className="rounded-2xl border border-rose-500/50 bg-rose-950/30 p-4 text-sm text-rose-100">{error}</div>
               )}
 
               {currentStrategy && (
-                <div className="rounded-2xl border border-white/10 bg-gradient-to-b from-slate-900/60 to-slate-950/80 p-4 text-sm text-slate-100 shadow-inner space-y-4">
+                <div className="space-y-4 rounded-2xl border border-slate-700/70 bg-slate-900/70 p-4 text-sm text-slate-100 shadow-[inset_0_1px_0_rgba(148,163,184,0.08)]">
                   <div className="flex items-center justify-between">
                     <div>
-                      <div className="text-xs uppercase tracking-[0.2em] text-teal-200">Latest Strategy</div>
-                      <div className="text-lg font-semibold text-white">Creative Direction</div>
+                      <div className="text-xs uppercase tracking-[0.2em] text-slate-400">Latest Strategy</div>
+                      <div className="font-mono text-lg font-semibold text-slate-100">Creative Direction</div>
                     </div>
                   </div>
-                  <div className="rounded-xl border border-white/10 bg-white/5 p-3">
-                    <p className="text-xs text-teal-200">Strategic Brief</p>
+                  <div className="rounded-xl border border-slate-700/70 bg-slate-800/60 p-3">
+                    <p className="text-xs text-slate-300">Strategic Brief</p>
                     <p className="mt-1 text-sm leading-relaxed text-slate-100">{currentStrategy.strategicBrief}</p>
                   </div>
                   {currentStrategy.reasoning && (
-                    <div className="rounded-xl border border-white/10 bg-white/5 p-3">
-                      <p className="text-xs text-teal-200">Reasoning</p>
+                    <div className="rounded-xl border border-slate-700/70 bg-slate-800/60 p-3">
+                      <p className="text-xs text-slate-300">Reasoning</p>
                       <p className="mt-1 text-sm leading-relaxed text-slate-200">{currentStrategy.reasoning}</p>
                     </div>
                   )}
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
-                      <p className="text-xs uppercase tracking-[0.2em] text-teal-200">Content Ideas</p>
+                      <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Content Ideas</p>
                     </div>
                     <div className="grid gap-3 md:grid-cols-2">
                       {currentStrategy.contentIdeas.map((idea, idx) => (
@@ -357,20 +363,20 @@ export default function Page() {
                           return (
                             <div
                               key={idx}
-                              className="rounded-xl border border-white/10 bg-slate-900/60 p-3 shadow-sm shadow-black/30 space-y-2"
+                              className="space-y-2 rounded-xl border border-slate-700/80 bg-slate-800/50 p-3"
                             >
-                              <p className="text-sm font-semibold text-white">{idea.title || `Idea ${idx + 1}`}</p>
+                              <p className="font-mono text-sm font-semibold text-slate-100">{idea.title || `Idea ${idx + 1}`}</p>
                               {idea.tiktok_script && (
-                                <div className="rounded-lg border border-white/5 bg-white/5 p-2 text-xs text-slate-100 space-y-1">
-                                  <p className="font-semibold text-teal-200">TikTok Script</p>
+                                <div className="space-y-1 rounded-lg border border-slate-700/80 bg-slate-900/60 p-2 text-xs text-slate-100">
+                                  <p className="font-semibold text-slate-300">TikTok Script</p>
                                   {idea.tiktok_script.hook && (
-                                    <p><span className="text-slate-300">Hook:</span> {idea.tiktok_script.hook}</p>
+                                    <p><span className="text-slate-400">Hook:</span> {idea.tiktok_script.hook}</p>
                                   )}
                                   {idea.tiktok_script.visual_direction && (
-                                    <p><span className="text-slate-300">Visual:</span> {idea.tiktok_script.visual_direction}</p>
+                                    <p><span className="text-slate-400">Visual:</span> {idea.tiktok_script.visual_direction}</p>
                                   )}
                                   {idea.tiktok_script.audio_spec && (
-                                    <p><span className="text-slate-300">Song:</span> {idea.tiktok_script.audio_spec}</p>
+                                    <p><span className="text-slate-400">Song:</span> {idea.tiktok_script.audio_spec}</p>
                                   )}
                                 </div>
                               )}
@@ -378,7 +384,7 @@ export default function Page() {
                                 <p className="text-xs text-slate-200"><span className="text-slate-400">Concept:</span> {idea.concept}</p>
                               )}
                               {idea.source_evidence && (
-                                <p className="text-xs text-teal-200">
+                                <p className="text-xs text-slate-300">
                                   Source:{" "}
                                   <span className="text-slate-100">{linkifyText(idea.source_evidence)}</span>
                                 </p>
@@ -388,7 +394,7 @@ export default function Page() {
                               )}
                               {idea.sourceUrl && normalizeExternalUrl(idea.sourceUrl) && (
                                 <a
-                                  className="text-xs text-cyan-200 underline decoration-cyan-300 underline-offset-4"
+                                  className="text-xs text-sky-300 underline decoration-sky-400 underline-offset-4"
                                   href={normalizeExternalUrl(idea.sourceUrl) ?? undefined}
                                   target="_blank"
                                   rel="noreferrer"
@@ -398,7 +404,7 @@ export default function Page() {
                               )}
                               {sourceLinks.length > 0 && (
                                 <div className="space-y-1">
-                                  <p className="text-[11px] uppercase tracking-[0.16em] text-teal-200">Source Links</p>
+                                  <p className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Source Links</p>
                                   <div className="space-y-1">
                                     {sourceLinks.map((link) => (
                                       <div key={`${link.url}-${link.trendContext}`} className="text-xs text-slate-200">
@@ -406,7 +412,7 @@ export default function Page() {
                                           href={link.url}
                                           target="_blank"
                                           rel="noreferrer"
-                                          className="block truncate text-cyan-200 underline decoration-cyan-300 underline-offset-4"
+                                          className="block truncate text-sky-300 underline decoration-sky-400 underline-offset-4"
                                         >
                                           {link.url}
                                         </a>
@@ -420,7 +426,7 @@ export default function Page() {
                               )}
                               {links.length > 0 && (
                                 <div className="space-y-1">
-                                  <p className="text-[11px] uppercase tracking-[0.16em] text-teal-200">Related Links</p>
+                                  <p className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Related Links</p>
                                   <div className="space-y-1">
                                     {links.map((url) => (
                                       <a
@@ -428,7 +434,7 @@ export default function Page() {
                                         href={url}
                                         target="_blank"
                                         rel="noreferrer"
-                                        className="block truncate text-xs text-cyan-200 underline decoration-cyan-300 underline-offset-4"
+                                        className="block truncate text-xs text-sky-300 underline decoration-sky-400 underline-offset-4"
                                       >
                                         {url}
                                       </a>
@@ -446,24 +452,24 @@ export default function Page() {
               )}
 
               {currentStrategy && (
-                <section className="rounded-2xl border border-white/10 bg-white/5 p-4 shadow-inner">
+                <section className="rounded-2xl border border-slate-700/70 bg-slate-900/70 p-4 shadow-[inset_0_1px_0_rgba(148,163,184,0.08)]">
                   <div className="flex items-center justify-between">
-                    <h2 className="text-sm font-semibold text-white">Refine With Feedback</h2>
-                    <span className="text-[11px] uppercase tracking-[0.2em] text-teal-200">Interactive</span>
+                    <h2 className="font-mono text-sm font-semibold text-slate-100">Refine Strategy</h2>
+                    <span className="text-[11px] uppercase tracking-[0.2em] text-slate-400">Interactive</span>
                   </div>
-                  <p className="mt-1 text-xs text-slate-300">Tell the agent if you like it or not and how to niche it further.</p>
+                  <p className="mt-1 text-xs text-slate-400">Adjust the niche, tone, audience, or production constraints.</p>
                   <div className="mt-3 space-y-2">
                     <textarea
                       value={feedback}
                       onChange={(e) => setFeedback(e.target.value)}
                       placeholder="Example: Push this toward moody brutalist interiors for Gen Z design students. Keep handheld, harsh flash."
-                      className="min-h-24 w-full rounded-xl border border-white/10 bg-slate-900/60 p-3 text-sm text-white outline-none ring-1 ring-transparent transition focus:border-teal-300/60 focus:ring-teal-300/30"
+                      className="min-h-24 w-full rounded-xl border border-slate-700 bg-slate-950/70 p-3 text-sm text-slate-100 outline-none ring-1 ring-transparent transition focus:border-sky-400/60 focus:ring-sky-400/20"
                     />
                     <button
                       type="button"
                       onClick={handleRefine}
                       disabled={isRefining || !feedback.trim()}
-                      className="inline-flex items-center justify-center rounded-full bg-gradient-to-r from-teal-400 to-cyan-300 px-4 py-2 text-sm font-semibold text-slate-900 transition hover:shadow-lg hover:shadow-teal-400/30 disabled:opacity-50"
+                      className="inline-flex items-center justify-center rounded-full border border-slate-500 bg-slate-200 px-4 py-2 text-sm font-semibold text-slate-900 transition hover:bg-white disabled:opacity-50"
                     >
                       {isRefining ? "Refining..." : "Send Feedback"}
                     </button>
@@ -474,28 +480,28 @@ export default function Page() {
 
             <div className="space-y-4">
               {events.length > 0 && (
-                <section className="rounded-2xl border border-white/10 bg-slate-900/70 p-4 shadow-inner">
+                <section className="rounded-2xl border border-slate-700/70 bg-slate-900/70 p-4 shadow-[inset_0_1px_0_rgba(148,163,184,0.08)]">
                   <div className="flex items-center justify-between">
-                    <h2 className="text-sm font-semibold text-white">Live Agent Flow</h2>
-                    <span className="text-[11px] uppercase tracking-[0.2em] text-teal-200">Streaming</span>
+                    <h2 className="font-mono text-sm font-semibold text-slate-100">Lab Log</h2>
+                    <span className="text-[11px] uppercase tracking-[0.2em] text-slate-400">Streaming</span>
                   </div>
                   <div className="mt-3 space-y-3 max-h-[520px] overflow-auto">
                     {chatMessages.map((msg) => (
                       <div
                         key={msg.id}
-                        className="rounded-xl border border-white/5 bg-white/5 p-3 text-xs text-slate-100 shadow-sm shadow-black/30"
+                        className="rounded-xl border border-slate-700/70 bg-slate-800/50 p-3 text-xs text-slate-100"
                       >
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
                             <span
-                              className={`h-2 w-2 rounded-full ${msg.tone === "error"
-                                  ? "bg-red-400"
+                                className={`h-2 w-2 rounded-full ${msg.tone === "error"
+                                  ? "bg-rose-400"
                                   : msg.tone === "success"
-                                    ? "bg-teal-300"
-                                    : "bg-cyan-300"
+                                    ? "bg-emerald-300"
+                                    : "bg-sky-300"
                                 }`}
                             />
-                            <span className="text-[11px] font-semibold text-teal-100">
+                            <span className="text-[11px] font-semibold text-slate-300">
                               {msg.title}
                             </span>
                           </div>
@@ -510,7 +516,7 @@ export default function Page() {
                             {msg.tools.map((tool: string) => (
                               <span
                                 key={tool}
-                                className="rounded-full border border-white/10 bg-white/10 px-2 py-1 text-[11px] text-cyan-100"
+                                className="rounded-full border border-slate-600 bg-slate-700/70 px-2 py-1 text-[11px] text-slate-200"
                               >
                                 {tool}
                               </span>

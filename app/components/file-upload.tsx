@@ -189,10 +189,10 @@ export function FileUpload({ onImagesChange }: FileUploadProps) {
             {/* Drop zone */}
             <Card
                 className={cn(
-                    "border-2 border-dashed transition-all duration-200 cursor-pointer",
+                    "cursor-pointer border-2 border-dashed border-slate-600/80 bg-slate-900/50 transition-all duration-200",
                     isDragging
-                        ? "border-primary bg-primary/5 scale-[1.01]"
-                        : "border-border hover:border-primary/50 hover:bg-muted/50"
+                        ? "scale-[1.01] border-sky-400/80 bg-sky-900/20"
+                        : "hover:border-slate-500 hover:bg-slate-800/60"
                 )}
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}
@@ -208,16 +208,16 @@ export function FileUpload({ onImagesChange }: FileUploadProps) {
                     }
                 }}
             >
-                <CardContent className="flex flex-col items-center justify-center py-16 px-6">
+                <CardContent className="flex flex-col items-center justify-center px-6 py-16">
                     <UploadIcon />
-                    <p className="mt-4 text-lg font-medium text-foreground">
-                        Drop your files here
+                    <p className="mt-4 font-mono text-lg font-medium text-slate-100">
+                        Drop reference files
                     </p>
-                    <p className="mt-1 text-sm text-muted-foreground">
+                    <p className="mt-1 text-sm text-slate-400">
                         or click to browse from your device
                     </p>
-                    <p className="mt-3 text-xs text-muted-foreground">
-                        Supports images, PDFs, documents, and more
+                    <p className="mt-3 text-xs text-slate-500">
+                        Supports images and common document formats
                     </p>
                 </CardContent>
             </Card>
@@ -238,7 +238,7 @@ export function FileUpload({ onImagesChange }: FileUploadProps) {
                         <h2 className="text-sm font-semibold text-foreground">
                             Uploaded files ({files.length})
                         </h2>
-                        <Button variant="ghost" size="sm" onClick={clearAll} className="text-muted-foreground hover:text-destructive">
+                        <Button variant="ghost" size="sm" onClick={clearAll} className="text-slate-400 hover:bg-rose-950/20 hover:text-rose-300">
                             Clear all
                         </Button>
                     </div>
@@ -266,11 +266,11 @@ function FileItem({
     onRemove: (id: string) => void;
 }) {
     return (
-        <Card className="overflow-hidden">
+        <Card className="overflow-hidden border border-slate-700/70 bg-slate-900/70">
             <div className="flex items-center gap-4 p-4">
                 {/* Preview or icon */}
                 {uploadedFile.preview ? (
-                    <div className="h-12 w-12 flex-shrink-0 overflow-hidden rounded-lg bg-muted">
+                    <div className="h-12 w-12 flex-shrink-0 overflow-hidden rounded-lg bg-slate-800">
                         <img
                             src={uploadedFile.preview || "/placeholder.svg"}
                             alt={`Preview of ${uploadedFile.file.name}`}
@@ -278,7 +278,7 @@ function FileItem({
                         />
                     </div>
                 ) : (
-                    <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-lg bg-muted">
+                    <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-lg bg-slate-800">
                         <FileIcon type={uploadedFile.file.type} />
                     </div>
                 )}
@@ -288,7 +288,7 @@ function FileItem({
                     <p className="truncate text-sm font-medium text-foreground">
                         {uploadedFile.file.name}
                     </p>
-                    <p className="text-xs text-muted-foreground">
+                    <p className="text-xs text-slate-400">
                         {formatFileSize(uploadedFile.file.size)}
                     </p>
                 </div>
@@ -296,7 +296,7 @@ function FileItem({
                 {/* Remove button */}
                 <button
                     onClick={() => onRemove(uploadedFile.id)}
-                    className="flex-shrink-0 rounded-full p-1.5 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                    className="flex-shrink-0 rounded-full p-1.5 text-slate-400 transition-colors hover:bg-rose-950/20 hover:text-rose-300"
                     aria-label={`Remove ${uploadedFile.file.name}`}
                 >
                     <svg
