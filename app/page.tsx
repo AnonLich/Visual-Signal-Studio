@@ -349,7 +349,16 @@ export default function Page() {
                     <div className="grid gap-3 md:grid-cols-2">
                       {currentStrategy.contentIdeas.map((idea, idx) => (
                         (() => {
-                          const links = collectContentIdeaLinks(idea);
+                          const sourceLinks = (idea.sourceLinks ?? [])
+                            .map((link) => {
+                              const normalized = normalizeExternalUrl(link.url);
+                              if (!normalized) return null;
+                              return { ...link, url: normalized };
+                            })
+                            .filter((link): link is { url: string; trendContext: string } => Boolean(link));
+                          const links = collectContentIdeaLinks(idea).filter(
+                            (url) => !sourceLinks.some((link) => link.url === url),
+                          );
                           return (
                         <div
                           key={idx}
@@ -392,9 +401,31 @@ export default function Page() {
                               Source link
                             </a>
                           )}
+                          {sourceLinks.length > 0 && (
+                            <div className="space-y-1">
+                              <p className="text-[11px] uppercase tracking-[0.16em] text-teal-200">Source Links</p>
+                              <div className="space-y-1">
+                                {sourceLinks.map((link) => (
+                                  <div key={`${link.url}-${link.trendContext}`} className="text-xs text-slate-200">
+                                    <a
+                                      href={link.url}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="block truncate text-cyan-200 underline decoration-cyan-300 underline-offset-4"
+                                    >
+                                      {link.url}
+                                    </a>
+                                    {link.trendContext && (
+                                      <p className="text-[11px] text-slate-400">{link.trendContext}</p>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
                           {links.length > 0 && (
                             <div className="space-y-1">
-                              <p className="text-[11px] uppercase tracking-[0.16em] text-teal-200">Links</p>
+                              <p className="text-[11px] uppercase tracking-[0.16em] text-teal-200">Related Links</p>
                               <div className="space-y-1">
                                 {links.map((url) => (
                                   <a

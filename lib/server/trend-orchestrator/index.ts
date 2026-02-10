@@ -42,7 +42,131 @@ RULES:
 2. CREATIVE COLLISION: You must take ONE element from the image (e.g., the text, the hat, the blue tone) and FORCE it to merge with a completely unrelated 2026 trend (e.g., 'Industrial ASMR', 'Thermal-core', 'Glitch-Western').
 3. DIRECTOR STYLE: Use technical cinematography terms. No "nice lighting." Use "Tungsten 3200K," "Low-angle 14mm fisheye," "High-grain 16mm film stock."
 4. THE TWIST: Every content idea must have a "Viral Anomaly"—something weird that makes people stop scrolling (e.g., 'Film this while a drone drops flower petals on a trash heap').
+5. SOURCES PER IDEA: Every content idea must include sourceLinks with 1-3 links.
+6. LINK DIVERSITY: Prefer different source links across the 3 ideas. If a link is reused, add at least one additional unique source link in that idea.
 `
+
+const URL_REGEX = /(https?:\/\/[^\s"'<>)]+|www\.[^\s"'<>)]+)/gi
+
+function cleanUrlToken(value: string) {
+	return value.replace(/[.,!?;:]+$/, "")
+}
+
+function normalizeExternalUrl(value: string): string | null {
+	const cleaned = cleanUrlToken(value.trim())
+	if (!cleaned) return null
+
+	const candidate = /^https?:\/\//i.test(cleaned)
+		? cleaned
+		: `https://${cleaned}`
+
+	try {
+		const parsed = new URL(candidate)
+		if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+			return null
+		}
+		return parsed.toString()
+	} catch {
+		return null
+	}
+}
+
+function extractUrls(value: string): string[] {
+	const matches = value.match(URL_REGEX) ?? []
+	const normalized = matches
+		.map((match) => normalizeExternalUrl(match))
+		.filter((url): url is string => Boolean(url))
+	return Array.from(new Set(normalized))
+}
+
+function ensureDiverseIdeaLinks(strategy: TrendStrategy): TrendStrategy {
+	const linkPool = Array.from(
+		new Map(
+			(strategy.tiktokLinks ?? [])
+				.map((link) => {
+					const normalizedUrl = normalizeExternalUrl(link.url)
+					if (!normalizedUrl) return null
+					return [
+						normalizedUrl,
+						{
+							url: normalizedUrl,
+							trendContext: link.trendContext?.trim() || "Supporting source",
+						},
+					] as const
+				})
+				.filter(
+					(
+						item,
+					): item is readonly [string, { url: string; trendContext: string }] =>
+						Boolean(item),
+				),
+		).values(),
+	)
+
+	const usedPrimaryUrls = new Set<string>()
+
+	const contentIdeas = strategy.contentIdeas.map((idea) => {
+		const preferredLinks = (idea.sourceLinks ?? [])
+			.map((link) => {
+				const normalizedUrl = normalizeExternalUrl(link.url)
+				if (!normalizedUrl) return null
+				return {
+					url: normalizedUrl,
+					trendContext: link.trendContext?.trim() || "Supporting source",
+				}
+			})
+			.filter(
+				(
+					item,
+				): item is {
+					url: string
+					trendContext: string
+				} => Boolean(item),
+			)
+
+		const evidenceLinks = extractUrls(idea.source_evidence ?? "").map((url) => ({
+			url,
+			trendContext: "Mentioned in source evidence",
+		}))
+
+		const mergedLinks = Array.from(
+			new Map(
+				[...preferredLinks, ...evidenceLinks].map((link) => [link.url, link]),
+			).values(),
+		)
+
+		if (mergedLinks.length === 0 && linkPool.length > 0) {
+			const preferredPoolLink =
+				linkPool.find((link) => !usedPrimaryUrls.has(link.url)) ?? linkPool[0]
+			if (preferredPoolLink) {
+				mergedLinks.push(preferredPoolLink)
+			}
+		}
+
+		if (mergedLinks.length > 0 && usedPrimaryUrls.has(mergedLinks[0].url)) {
+			const extraUnique = linkPool.find(
+				(link) =>
+					!usedPrimaryUrls.has(link.url) &&
+					!mergedLinks.some((existing) => existing.url === link.url),
+			)
+			if (extraUnique) {
+				mergedLinks.push(extraUnique)
+			}
+		}
+
+		const finalLinks = mergedLinks.slice(0, 3)
+		if (finalLinks[0]) {
+			usedPrimaryUrls.add(finalLinks[0].url)
+		}
+
+		return {
+			...idea,
+			sourceLinks: finalLinks,
+		}
+	})
+
+	return { ...strategy, contentIdeas }
+}
 
 export async function refineTrendStrategy(
 	input: RefineTrendInput,
@@ -70,7 +194,7 @@ ${imageUrl ?? "n/a"}
 		result.object.tiktokLinks = currentStrategy.tiktokLinks
 	}
 
-	return result.object
+	return ensureDiverseIdeaLinks(result.object)
 }
 
 export async function orchestrateTrendMatch(
@@ -184,5 +308,5 @@ REQUIRED OUTPUT:
 		prompt: finalPrompt,
 	})
 
-	return object
+	return ensureDiverseIdeaLinks(object)
 }

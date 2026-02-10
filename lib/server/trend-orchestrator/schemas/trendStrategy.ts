@@ -1,5 +1,10 @@
 import { z } from "zod"
 
+export const TikTokLinkSchema = z.object({
+	url: z.string(),
+	trendContext: z.string(),
+})
+
 export const ContentIdeaSchema = z.object({
 	title: z.string(),
 	tiktok_script: z.object({
@@ -14,14 +19,10 @@ export const ContentIdeaSchema = z.object({
 			.describe("The specific viral sound or ASMR trigger to use"),
 	}),
 	source_evidence: z.string(),
+	sourceLinks: z.array(TikTokLinkSchema),
 	cultural_context: z
 		.string()
 		.describe("Why does this specific sub-culture care about this?"),
-})
-
-export const TikTokLinkSchema = z.object({
-	url: z.string(),
-	trendContext: z.string(),
 })
 
 export const TrendStrategySchema = z.object({

@@ -31,6 +31,7 @@ export type TrendContentIdea = {
 	tiktok_script?: TrendScript
 	source_evidence?: string
 	cultural_context?: string
+	sourceLinks?: Array<{ url: string; trendContext: string }>
 	sourceUrl?: string
 	trendingSignal?: string
 	visualReference?: string
