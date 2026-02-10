@@ -1,36 +1,73 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Trend-Engine: Multimodal Agentic Research
 
-## Getting Started
+A pipeline designed to bridge the gap between static visual assets and viral cultural trends.
+Instead of generic LLM descriptions, this engine performs a **Creative Collision** between vision analysis and real-time social signals.
 
-First, run the development server:
+## 1. High-Level Vision (The "Why")
+
+Most AI workflows describe an image, then stop.
+This project is built to do something more useful for creative teams: convert a static reference into a trend-aware, production-ready content direction.
+
+The goal is not "nice AI output."  
+The goal is **strategic relevance + cultural timing + creative edge**.
+
+## 2. Architecture & Logic (The "How")
+
+The pipeline runs in three core phases:
+
+1. **Visual DNA Extraction**
+   Uses GPT-4o Vision to deconstruct an image into structured creative parameters:
+   archetypes, aesthetic style, lighting/mood, palette, visual markers, and market positioning.
+
+2. **Agentic Search**
+   Uses Exa AI to pull fresh, niche trend signals from culture-first sources
+   (for example Substacks and TikTok-adjacent signals), instead of generic SEO content.
+
+3. **Semantic Re-ranking**
+   Uses `text-embedding-3-small` and cosine similarity to match image DNA against research outputs.
+   This forces the final strategy to stay tightly aligned with the original visual intent.
+
+## 3. The "Creative Collision" Framework
+
+This system is intentionally designed to avoid default "LLM politeness."
+
+- It uses **creative constraints** to force specificity in output shape.
+- It frames the model behavior as a **Creative Director** role, not a generic AI assistant.
+- It combines conflicting inputs (visual identity + emerging trend signals) to generate sharper, less predictable content ideas.
+
+Result: strategy outputs that are more directional, culturally grounded, and creatively distinct.
+
+## 4. Tech Stack
+
+- **Framework:** Next.js (App Router)
+- **AI Orchestration:** Vercel AI SDK
+- **Models:** GPT-4o (Vision/Reasoning), `text-embedding-3-small`
+- **Search:** Exa AI
+
+## 5. Getting Started
+
+1. Clone the repo.
+2. Create `.env.local` with:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+OPENAI_API_KEY=...
+EXA_API_KEY=...
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+3. Install and run:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+npm install
+npm run dev
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Open [http://localhost:3000](http://localhost:3000).
 
-## Learn More
+## Environment Note
 
-To learn more about Next.js, take a look at the following resources:
+Current server code reads `EXA_SEARCH_API_KEY`.
+If you use `EXA_API_KEY` in `.env.local`, also add:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+EXA_SEARCH_API_KEY=$EXA_API_KEY
+```
