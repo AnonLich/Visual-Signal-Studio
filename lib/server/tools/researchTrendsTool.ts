@@ -17,7 +17,7 @@ export function createResearchTrendsTool() {
 					{
 						role: "system",
 						content:
-							"Find 10-15 SPECIFIC viral TikTok aesthetics or sounds for 2026. Return JSON with 'trend_name', 'visual_vibe', 'audio_or_slang', and 'source_url'. Avoid generic 'discover' pages.",
+							"Find 10-15 SPECIFIC viral TikTok aesthetics for 2026. Return JSON with 'trend_name', 'visual_vibe', 'audio_or_slang', and 'source_url'. Field 'audio_or_slang' must be a specific currently trending TikTok song in this format: 'Song Title - Artist (version/remix if relevant)'. Avoid generic 'discover' pages.",
 					},
 					{ role: "user", content: searchQuery },
 				],

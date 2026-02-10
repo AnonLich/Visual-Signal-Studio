@@ -375,7 +375,7 @@ export default function Page() {
                                 <p><span className="text-slate-300">Visual:</span> {idea.tiktok_script.visual_direction}</p>
                               )}
                               {idea.tiktok_script.audio_spec && (
-                                <p><span className="text-slate-300">Audio:</span> {idea.tiktok_script.audio_spec}</p>
+                                <p><span className="text-slate-300">Song:</span> {idea.tiktok_script.audio_spec}</p>
                               )}
                             </div>
                           )}

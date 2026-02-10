@@ -16,7 +16,9 @@ export const ContentIdeaSchema = z.object({
 			),
 		audio_spec: z
 			.string()
-			.describe("The specific viral sound or ASMR trigger to use"),
+			.describe(
+				"A specific currently trending TikTok track formatted as 'Song Title - Artist (version/remix if relevant)'. Not a descriptive sound texture.",
+			),
 	}),
 	source_evidence: z.string(),
 	sourceLinks: z.array(TikTokLinkSchema),

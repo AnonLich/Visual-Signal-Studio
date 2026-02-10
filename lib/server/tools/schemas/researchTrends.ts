@@ -21,6 +21,8 @@ export const ResearchTrendsOutputJsonSchema = {
 					},
 					audio_or_slang: {
 						type: "string",
+						description:
+							"Specific currently trending TikTok song in format 'Song Title - Artist (version/remix if relevant)'",
 					},
 					source_url: {
 						type: "string",

@@ -31,6 +31,7 @@ PHASE 3: Develop 3 TikTok scripts. Each must have a 'Visual Logic' (e.g., "Stati
 
 STRICT RULE: If you find a trend, you MUST identify the specific 'Audio Trigger' (e.g. a specific sped-up song or an ASMR sound).
 STRICT RULE: No corporate jargon like "boost engagement". Use director terms like "stop-the-scroll hook" and "visual tension".
+STRICT RULE: For each idea's audio_spec, output a real track as 'Song Title - Artist (version/remix if relevant)'. Never output generic audio descriptions like "ethereal synth waves".
 `
 
 const FORMATTER_SYSTEM_PROMPT = `
@@ -44,6 +45,7 @@ RULES:
 4. THE TWIST: Every content idea must have a "Viral Anomaly"—something weird that makes people stop scrolling (e.g., 'Film this while a drone drops flower petals on a trash heap').
 5. SOURCES PER IDEA: Every content idea must include sourceLinks with 1-3 links.
 6. LINK DIVERSITY: Prefer different source links across the 3 ideas. If a link is reused, add at least one additional unique source link in that idea.
+7. AUDIO FORMAT: audio_spec must be a specific currently trending TikTok song in the format "Song Title - Artist (version/remix if relevant)".
 `
 
 const URL_REGEX = /(https?:\/\/[^\s"'<>)]+|www\.[^\s"'<>)]+)/gi
@@ -297,7 +299,7 @@ REQUIRED OUTPUT:
    - THE RESULT: A TikTok script that is a 'Pattern Interrupt'.
 
 4. PRODUCTION SPEC:
-   - AUDIO: Be hyper-specific (e.g., 'Slowed + Reverb Swedish trap mixed with industrial printer noises').
+   - AUDIO: Use a specific currently trending TikTok song in this exact format: 'Song Title - Artist (version/remix if relevant)'.
    - VISUAL: Describe the lens, the movement, and the "Chaos Factor".
 `
 
